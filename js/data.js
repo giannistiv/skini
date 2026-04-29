@@ -55,9 +55,9 @@ const PLAYS = [
     genre: ["Αρχαία Τραγωδία", "Σύγχρονη Διασκευή"],
     duration: "~140'",
     image:
-      "https://admin.onassis.org/images/R6-dR96HpP2TWI2MPYaXQdVoAVA=/17926/width-1200/Oedipus_Site_Newsletter_1200x900px.jpg",
+      "https://cosmopoliti.com/wp-content/uploads/2025/11/Oedipus_Poster.jpg",
     imageFallback:
-      "https://admin.onassis.org/images/1QLDTtwCj19Bx5Dbyrqe-0vAFMA=/18016/width-1200/Oedipus_c_Andreas_Simopoulos_DSC09716_nE7ItAA.jpg",
+      "https://cosmopoliti.com/wp-content/uploads/2025/11/Robert-Icke_Oedipus-©-Yiorgos-Kaplanidis-for-Onassis-Stegi.jpg",
     description:
       "Ο βραβευμένος με Olivier βρετανός σκηνοθέτης Robert Icke μεταμορφώνει τη σοφόκλεια τραγωδία σε ένα σκοτεινό πολιτικό-οικογενειακό θρίλερ. Ο Οιδίποδας, σύγχρονος ηγέτης που επιζητά την αλήθεια πάση θυσία, βρίσκεται να αντιμετωπίζει το αδύνατο: ότι η ίδια η αλήθεια τον καταστρέφει. Η παράσταση μεταφέρθηκε από το Internationaal Theater Amsterdam, με ελληνικό θίασο για πρώτη φορά.",
     cast: [

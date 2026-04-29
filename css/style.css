@@ -331,29 +331,223 @@ img { display: block; max-width: 100%; }
 .info-card p { font-size: .875rem; line-height: 1.6; }
 .info-card .address { color: var(--muted); font-size: .8rem; margin-top: .2rem; }
 
-/* ── Star Rating ──────────────────────────────────── */
-.rating-section { margin-top: .5rem; }
-.rating-section h4 { font-size: .75rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: .75rem; }
-.stars-row {
-  display: flex; gap: .15rem;
+/* ── Central Rating Strip ─────────────────────────── */
+.rating-strip {
+  max-width: 1000px; margin: 0 auto;
+  padding: 2rem 2rem 1.5rem;
+  text-align: center;
   cursor: pointer;
-  width: fit-content;
+  border-bottom: 1px solid var(--border);
+  transition: background .2s;
 }
-.star-btn {
-  font-size: 1.6rem;
+.rating-strip:hover { background: var(--surface); }
+
+.strip-stars-row {
+  display: flex; justify-content: center; gap: .3rem;
+  margin-bottom: .5rem;
+}
+.strip-star {
+  font-size: 2.4rem;
   color: var(--border);
   background: none; border: none;
   cursor: pointer;
-  transition: color .1s, transform .1s;
-  padding: 0 .05rem;
+  transition: color .1s, transform .15s;
+  padding: 0 .1rem;
   line-height: 1;
 }
-.star-btn:hover, .star-btn.filled { color: var(--star); }
-.star-btn:hover { transform: scale(1.15); }
-.rating-label {
+.strip-star:hover, .strip-star.filled { color: var(--star); }
+.strip-star:hover { transform: scale(1.2); }
+
+.strip-label {
+  font-size: .85rem; color: var(--muted);
+  margin-bottom: .6rem;
+}
+
+.strip-extras {
+  display: flex; justify-content: center; align-items: center;
+  gap: 1rem; flex-wrap: wrap;
+}
+
+.strip-date {
+  font-size: .78rem; color: var(--muted);
+  background: var(--surface2);
+  padding: .25rem .7rem;
+  border-radius: 12px;
+}
+
+.strip-review {
+  margin-top: .6rem;
+  font-size: .85rem; color: var(--muted);
+  font-style: italic;
+  max-width: 500px; margin-left: auto; margin-right: auto;
+}
+
+.strip-hint {
   margin-top: .5rem;
+  font-size: .7rem; color: var(--border);
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  transition: color .2s;
+}
+.rating-strip:hover .strip-hint { color: var(--accent); }
+
+/* Recommendation badge */
+.rec-badge {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .78rem; font-weight: 600;
+  padding: .3rem .7rem;
+  border-radius: 14px;
+}
+.rec-badge.rec-recommend { color: #34d399; background: rgba(52,211,153,.1); }
+.rec-badge.rec-meh       { color: #f59e0b; background: rgba(245,158,11,.1); }
+.rec-badge.rec-not        { color: #ef4444; background: rgba(239,68,68,.1); }
+
+.card-rec { margin-bottom: .6rem; }
+
+/* ── Review Modal ─────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  opacity: 0;
+  transition: opacity .2s;
+}
+.modal-overlay.open { opacity: 1; }
+
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2rem;
+  width: 100%; max-width: 480px;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+  transform: translateY(16px);
+  transition: transform .25s;
+}
+.modal-overlay.open .modal-card { transform: translateY(0); }
+
+.modal-close {
+  position: absolute; top: 1rem; right: 1.2rem;
+  background: none; border: none; color: var(--muted);
+  font-size: 1.6rem; cursor: pointer; line-height: 1;
+  transition: color .15s;
+}
+.modal-close:hover { color: var(--text); }
+
+.modal-title {
+  font-size: 1.4rem; font-weight: 800;
+  margin-bottom: .15rem;
+}
+.modal-subtitle {
+  font-size: .85rem; color: var(--muted);
+  margin-bottom: 1.5rem;
+}
+
+.modal-section { margin-bottom: 1.4rem; }
+
+.modal-label {
+  display: block;
+  font-size: .72rem; font-weight: 700; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: .6rem;
+}
+
+.modal-stars {
+  display: flex; justify-content: center; gap: .3rem;
+  margin-bottom: .3rem;
+}
+.modal-star {
+  font-size: 2.8rem;
+  color: var(--border);
+  background: none; border: none;
+  cursor: pointer;
+  transition: color .1s, transform .15s;
+  padding: 0 .15rem;
+  line-height: 1;
+}
+.modal-star:hover, .modal-star.filled { color: var(--star); }
+.modal-star:hover { transform: scale(1.15); }
+
+.modal-rating-text {
+  text-align: center;
   font-size: .8rem; color: var(--muted);
   min-height: 1.2em;
+  margin-bottom: .2rem;
+}
+
+/* Recommendation buttons */
+.rec-buttons {
+  display: flex; justify-content: center; gap: 1rem;
+}
+.rec-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: all .2s;
+  color: var(--muted);
+}
+.rec-btn:hover { transform: scale(1.1); }
+
+.rec-btn.rec-recommend:hover,
+.rec-btn.rec-recommend.active {
+  border-color: #34d399; color: #34d399;
+  background: rgba(52,211,153,.1);
+  box-shadow: 0 0 16px rgba(52,211,153,.25);
+}
+.rec-btn.rec-meh:hover,
+.rec-btn.rec-meh.active {
+  border-color: #f59e0b; color: #f59e0b;
+  background: rgba(245,158,11,.1);
+  box-shadow: 0 0 16px rgba(245,158,11,.25);
+}
+.rec-btn.rec-not:hover,
+.rec-btn.rec-not.active {
+  border-color: #ef4444; color: #ef4444;
+  background: rgba(239,68,68,.1);
+  box-shadow: 0 0 16px rgba(239,68,68,.25);
+}
+
+.modal-input {
+  width: 100%;
+  padding: .6rem .85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: .875rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s;
+}
+.modal-input:focus { border-color: var(--accent); }
+
+.modal-textarea {
+  width: 100%;
+  padding: .7rem .85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: .875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  outline: none;
+  transition: border-color .15s;
+}
+.modal-textarea:focus { border-color: var(--accent); }
+.modal-textarea::placeholder { color: var(--border); }
+
+.modal-actions {
+  display: flex; justify-content: flex-end; gap: .6rem;
+  margin-top: .5rem;
 }
 
 /* ── Footer ───────────────────────────────────────── */
