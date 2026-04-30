@@ -1,5 +1,5 @@
 /* ── State ─────────────────────────────────────────── */
-const STATE_KEY = "skini_state";
+const STATE_KEY = "aulaia_state";
 
 function loadState() {
   try {
@@ -24,6 +24,12 @@ function setPlayState(id, patch) {
   saveState(state);
 }
 
+/* ── Filters state ────────────────────────────────── */
+let currentTab = "plays";
+let searchQuery = "";
+let filterGenre = "";
+let filterVenue = "";
+
 /* ── Router ────────────────────────────────────────── */
 function getPage() {
   const params = new URLSearchParams(window.location.search);
@@ -33,6 +39,12 @@ function getPage() {
 function navigate(playId) {
   const url = playId ? `?play=${playId}` : "./";
   history.pushState({}, "", url);
+  render();
+}
+
+function navigateHome() {
+  history.pushState({}, "", "./");
+  currentTab = "plays";
   render();
 }
 
@@ -70,63 +82,106 @@ function recBadge(rec) {
   return `<span class="${cls}">${recIcon(rec, 14)} ${esc(REC_LABELS[rec])}</span>`;
 }
 
+function getAllGenres() {
+  const set = new Set();
+  PLAYS.forEach((p) => (p.genre || []).forEach((g) => set.add(g)));
+  return [...set].sort();
+}
+
+function getAllVenues() {
+  const set = new Set();
+  PLAYS.forEach((p) => { if (p.venue) set.add(p.venue); });
+  return [...set].sort();
+}
+
+function filterPlays() {
+  let list = PLAYS;
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    list = list.filter((p) =>
+      p.titleGr.toLowerCase().includes(q) ||
+      (p.titleEn && p.titleEn.toLowerCase().includes(q)) ||
+      (p.director && p.director.toLowerCase().includes(q)) ||
+      (p.author && p.author.toLowerCase().includes(q)) ||
+      (p.venue && p.venue.toLowerCase().includes(q)) ||
+      (p.cast || []).some((c) => c.name.toLowerCase().includes(q))
+    );
+  }
+  if (filterGenre) {
+    list = list.filter((p) => (p.genre || []).includes(filterGenre));
+  }
+  if (filterVenue) {
+    list = list.filter((p) => p.venue === filterVenue);
+  }
+  return list;
+}
+
 /* ── Home Page ─────────────────────────────────────── */
 function renderHome() {
-  const cards = PLAYS.map((p) => {
+  const genres = getAllGenres();
+  const venues = getAllVenues();
+
+  const genreOpts = genres.map((g) =>
+    `<option value="${esc(g)}" ${filterGenre === g ? "selected" : ""}>${esc(g)}</option>`
+  ).join("");
+
+  const venueOpts = venues.map((v) =>
+    `<option value="${esc(v)}" ${filterVenue === v ? "selected" : ""}>${esc(v)}</option>`
+  ).join("");
+
+  const plays = filterPlays();
+
+  const cards = plays.map((p) => {
     const ps = getPlayState(p.id);
-    const genres = p.genre.map((g) => `<span class="genre-pill">${esc(g)}</span>`).join("");
-
     const ratingOverlay = ps.rating
-      ? `<div class="user-rating-badge visible">★ ${ps.rating}/5</div>`
-      : `<div class="user-rating-badge"></div>`;
-
-    const recHtml = ps.recommendation
-      ? `<div class="card-rec">${recBadge(ps.recommendation)}</div>`
+      ? `<div class="poster-rating">★ ${ps.rating}</div>`
+      : "";
+    const recOverlay = ps.recommendation
+      ? `<div class="poster-rec rec-${ps.recommendation}">${recIcon(ps.recommendation, 14)}</div>`
       : "";
 
     return `
-      <article class="play-card fade-in" data-id="${esc(p.id)}">
-        <div class="card-poster">
+      <article class="poster-card fade-in" data-id="${esc(p.id)}">
+        <div class="poster-img">
           <img src="${esc(p.image)}" alt="${esc(p.titleGr)}"
-               onerror="this.src='${esc(p.imageFallback)}'">
-          <div class="card-genre">${genres}</div>
+               loading="lazy"
+               onerror="this.src='${esc(p.imageFallback || "")}'">
           ${ratingOverlay}
+          ${recOverlay}
         </div>
-        <div class="card-body">
-          <div class="card-title">${esc(p.titleGr)}</div>
-          <div class="card-subtitle">${esc(p.titleEn)}</div>
-          <div class="card-meta">
-            <span>${esc(p.director)}</span>
-            <span class="dot">·</span>
-            <span>${esc(p.venue)}</span>
-            <span class="dot">·</span>
-            <span>${esc(p.season)}</span>
-          </div>
-          ${recHtml}
-          <div class="card-actions">
-            <button class="btn seen ${ps.seen ? "active" : ""}"
-              data-toggle="seen" data-play="${esc(p.id)}">
-              ${ps.seen ? "✓" : "+"} Είδα
-            </button>
-            <button class="btn watch ${ps.watchlist ? "active" : ""}"
-              data-toggle="watch" data-play="${esc(p.id)}">
-              ${ps.watchlist ? "★" : "☆"} Λίστα
-            </button>
-            <button class="btn btn-primary" data-nav="${esc(p.id)}">
-              Λεπτομέρειες →
-            </button>
-          </div>
-        </div>
+        <div class="poster-title">${esc(p.titleGr)}</div>
       </article>`;
   }).join("");
 
+  const noResults = plays.length === 0
+    ? `<div class="no-results">Δεν βρέθηκαν παραστάσεις.</div>`
+    : "";
+
   return `
-    <div class="hero fade-in">
-      <h1>Θέατρο <em>Αθήνας</em></h1>
-      <p>Ανακάλυψε παραστάσεις, βαθμολόγησε και μοιράσου με φίλους.</p>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="search-input" class="search-input"
+          placeholder="Αναζήτηση παράστασης, σκηνοθέτη, ηθοποιού…"
+          value="${esc(searchQuery)}">
+        ${searchQuery ? '<button class="search-clear" id="search-clear">&times;</button>' : ""}
+      </div>
+      <div class="filters">
+        <select id="filter-genre" class="filter-select">
+          <option value="">Όλα τα είδη</option>
+          ${genreOpts}
+        </select>
+        <select id="filter-venue" class="filter-select">
+          <option value="">Όλοι οι χώροι</option>
+          ${venueOpts}
+        </select>
+        <span class="result-count">${plays.length} παραστάσεις</span>
+      </div>
     </div>
-    <div class="section-label">Παραστάσεις σεζόν 2025–26</div>
-    <div class="plays-grid">${cards}</div>`;
+    <div class="poster-grid">${cards}</div>
+    ${noResults}`;
 }
 
 /* ── Central Rating Strip ─────────────────────────── */
@@ -141,24 +196,17 @@ function renderRatingStrip(play, ps) {
     .join("");
 
   const label = ps.rating ? RATING_LABELS[ps.rating] : "Πάτησε για βαθμολογία & κριτική";
-
   const recHtml = ps.recommendation ? recBadge(ps.recommendation) : "";
-
   const dateHtml = ps.dateSeen
-    ? `<span class="strip-date">Είδα: ${esc(ps.dateSeen)}</span>`
-    : "";
-
+    ? `<span class="strip-date">Είδα: ${esc(ps.dateSeen)}</span>` : "";
   const reviewSnippet = ps.review
-    ? `<div class="strip-review">"${esc(ps.review.length > 80 ? ps.review.slice(0, 80) + "…" : ps.review)}"</div>`
-    : "";
+    ? `<div class="strip-review">"${esc(ps.review.length > 80 ? ps.review.slice(0, 80) + "…" : ps.review)}"</div>` : "";
 
   return `
     <div class="rating-strip fade-in" data-open-review="${esc(play.id)}">
       <div class="strip-stars-row">${stars}</div>
       <div class="strip-label">${label}</div>
-      <div class="strip-extras">
-        ${recHtml}${dateHtml}
-      </div>
+      <div class="strip-extras">${recHtml}${dateHtml}</div>
       ${reviewSnippet}
       <div class="strip-hint">Πάτησε για κριτική</div>
     </div>`;
@@ -170,26 +218,25 @@ function renderDetail(playId) {
   if (!p) { navigate(null); return ""; }
   const ps = getPlayState(p.id);
 
-  const genres = p.genre.map((g) => `<span class="badge">${esc(g)}</span>`).join("");
+  const genres = (p.genre || []).map((g) => `<span class="badge">${esc(g)}</span>`).join("");
   const highlight = p.highlight ? `<span class="badge highlight">✦ ${esc(p.highlight)}</span>` : "";
 
-  const castRows = p.cast
-    .map(
-      (c) => `<div class="cast-item">
+  const castRows = (p.cast || [])
+    .map((c) => `<div class="cast-item">
         <span class="cast-name">${esc(c.name)}</span>
         ${c.role ? `<span class="cast-role">${esc(c.role)}</span>` : ""}
-      </div>`
-    )
+      </div>`)
     .join("");
 
-  const crewRows = p.crew
-    .map(
-      (c) => `<div class="crew-item">
+  const crewRows = (p.crew || [])
+    .map((c) => `<div class="crew-item">
         <div class="crew-role">${esc(c.role)}</div>
         <div class="crew-name">${esc(c.name)}</div>
-      </div>`
-    )
+      </div>`)
     .join("");
+
+  const authorLine = p.author
+    ? `Βασισμένο στο έργο του <strong>${esc(p.author)}</strong> · ` : "";
 
   return `
     <button class="back-btn" id="back-btn">← Πίσω στις παραστάσεις</button>
@@ -199,18 +246,18 @@ function renderDetail(playId) {
       <div class="detail-content fade-in">
         <div class="detail-poster">
           <img src="${esc(p.image)}" alt="${esc(p.titleGr)}"
-               onerror="this.src='${esc(p.imageFallback)}'">
+               onerror="this.src='${esc(p.imageFallback || "")}'">
         </div>
         <div class="detail-info">
-          <div class="year-badge">${esc(p.season)} · ${esc(p.duration)}</div>
+          <div class="year-badge">${esc(p.season || "")} ${p.duration ? "· " + esc(p.duration) : ""}</div>
           <h1>${esc(p.titleGr)}</h1>
-          <div class="title-en">${esc(p.titleEn)}</div>
+          ${p.titleEn ? `<div class="title-en">${esc(p.titleEn)}</div>` : ""}
           <div class="author-line">
-            Βασισμένο στο έργο του <strong>${esc(p.author)}</strong> ·
-            Σκηνοθεσία: <strong>${esc(p.director)}</strong>
+            ${authorLine}
+            ${p.director ? `Σκηνοθεσία: <strong>${esc(p.director)}</strong>` : ""}
           </div>
           <div class="detail-badges">${genres}${highlight}</div>
-          <p class="detail-desc">${esc(p.description)}</p>
+          ${p.description ? `<p class="detail-desc">${esc(p.description)}</p>` : ""}
           <div class="detail-cta">
             <button class="btn seen ${ps.seen ? "active" : ""}"
               data-toggle="seen" data-play="${esc(p.id)}">
@@ -220,9 +267,7 @@ function renderDetail(playId) {
               data-toggle="watch" data-play="${esc(p.id)}">
               ${ps.watchlist ? "★ Στη λίστα μου" : "☆ Πρόσθεσε στη λίστα"}
             </button>
-            <a class="btn btn-primary" href="${esc(p.moreUrl)}" target="_blank" rel="noopener">
-              Αγορά εισιτηρίων ↗
-            </a>
+            ${p.moreUrl ? `<a class="btn btn-primary" href="${esc(p.moreUrl)}" target="_blank" rel="noopener">Εισιτήρια ↗</a>` : ""}
           </div>
         </div>
       </div>
@@ -232,25 +277,19 @@ function renderDetail(playId) {
 
     <div class="detail-body fade-in">
       <div>
-        <div class="section-title">Θίασος</div>
-        <div class="cast-list">${castRows}</div>
-        <br>
-        <div class="section-title">Συντελεστές</div>
-        <div class="crew-list">${crewRows}</div>
+        ${castRows ? `<div class="section-title">Θίασος</div><div class="cast-list">${castRows}</div><br>` : ""}
+        ${crewRows ? `<div class="section-title">Συντελεστές</div><div class="crew-list">${crewRows}</div>` : ""}
       </div>
-
       <div>
-        <div class="info-card">
-          <h4>Χώρος</h4>
-          <p>${esc(p.venue)}</p>
-          <p class="address">${esc(p.venueAddress)}</p>
-        </div>
-        <div class="info-card">
-          <h4>Πρόγραμμα</h4>
-          <p>${esc(p.schedule)}</p>
-        </div>
+        ${p.venue ? `<div class="info-card"><h4>Χώρος</h4><p>${esc(p.venue)}</p>${p.venueAddress ? `<p class="address">${esc(p.venueAddress)}</p>` : ""}</div>` : ""}
+        ${p.schedule ? `<div class="info-card"><h4>Πρόγραμμα</h4><p>${esc(p.schedule)}</p></div>` : ""}
       </div>
     </div>`;
+}
+
+/* ── Placeholder tabs ─────────────────────────────── */
+function renderPlaceholderTab(name) {
+  return `<div class="tab-placeholder"><p>${esc(name)} — Σύντομα διαθέσιμο</p></div>`;
 }
 
 /* ── Review Modal ─────────────────────────────────── */
@@ -260,11 +299,9 @@ function openReviewModal(playId) {
   const ps = getPlayState(playId);
 
   const stars = [1, 2, 3, 4, 5]
-    .map(
-      (n) =>
-        `<button class="modal-star ${n <= ps.rating ? "filled" : ""}"
-          data-n="${n}" aria-label="${n} αστέρια">${n <= ps.rating ? "★" : "☆"}</button>`
-    )
+    .map((n) =>
+      `<button class="modal-star ${n <= ps.rating ? "filled" : ""}"
+        data-n="${n}" aria-label="${n} αστέρια">${n <= ps.rating ? "★" : "☆"}</button>`)
     .join("");
 
   const today = new Date().toISOString().split("T")[0];
@@ -275,45 +312,28 @@ function openReviewModal(playId) {
     <div class="modal-card">
       <button class="modal-close" id="modal-close" aria-label="Κλείσιμο">&times;</button>
       <div class="modal-title">${esc(p.titleGr)}</div>
-      <div class="modal-subtitle">${esc(p.titleEn)}</div>
-
+      <div class="modal-subtitle">${esc(p.titleEn || "")}</div>
       <div class="modal-section">
         <label class="modal-label">Βαθμολογία</label>
         <div class="modal-stars">${stars}</div>
-        <div class="modal-rating-text" id="modal-rating-text">
-          ${ps.rating ? RATING_LABELS[ps.rating] : ""}
-        </div>
+        <div class="modal-rating-text" id="modal-rating-text">${ps.rating ? RATING_LABELS[ps.rating] : ""}</div>
       </div>
-
       <div class="modal-section">
         <label class="modal-label">Θα τo συνιστούσες;</label>
         <div class="rec-buttons">
-          <button class="rec-btn rec-recommend ${ps.recommendation === "recommend" ? "active" : ""}"
-            data-rec="recommend" title="Ναι">
-            ${recIcon("recommend", 22)}
-          </button>
-          <button class="rec-btn rec-meh ${ps.recommendation === "meh" ? "active" : ""}"
-            data-rec="meh" title="Μπα">
-            ${recIcon("meh", 22)}
-          </button>
-          <button class="rec-btn rec-not ${ps.recommendation === "not" ? "active" : ""}"
-            data-rec="not" title="Όχι">
-            ${recIcon("not", 22)}
-          </button>
+          <button class="rec-btn rec-recommend ${ps.recommendation === "recommend" ? "active" : ""}" data-rec="recommend" title="Ναι">${recIcon("recommend", 22)}</button>
+          <button class="rec-btn rec-meh ${ps.recommendation === "meh" ? "active" : ""}" data-rec="meh" title="Μπα">${recIcon("meh", 22)}</button>
+          <button class="rec-btn rec-not ${ps.recommendation === "not" ? "active" : ""}" data-rec="not" title="Όχι">${recIcon("not", 22)}</button>
         </div>
       </div>
-
       <div class="modal-section">
         <label class="modal-label" for="modal-date">Ημερομηνία που είδα</label>
         <input type="date" id="modal-date" class="modal-input" value="${esc(ps.dateSeen || today)}" max="${today}">
       </div>
-
       <div class="modal-section">
         <label class="modal-label" for="modal-review">Κριτική</label>
-        <textarea id="modal-review" class="modal-textarea" rows="4"
-          placeholder="Γράψε τις εντυπώσεις σου…">${esc(ps.review || "")}</textarea>
+        <textarea id="modal-review" class="modal-textarea" rows="4" placeholder="Γράψε τις εντυπώσεις σου…">${esc(ps.review || "")}</textarea>
       </div>
-
       <div class="modal-actions">
         <button class="btn" id="modal-cancel">Ακύρωση</button>
         <button class="btn btn-primary" id="modal-save">Αποθήκευση</button>
@@ -323,27 +343,21 @@ function openReviewModal(playId) {
   document.body.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add("open"));
 
-  /* ── modal state ── */
   let tempRating = ps.rating;
   let tempRec = ps.recommendation;
 
-  /* close */
   function close() {
     overlay.classList.remove("open");
     setTimeout(() => overlay.remove(), 200);
   }
 
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) close();
-  });
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
   overlay.querySelector("#modal-close").addEventListener("click", close);
   overlay.querySelector("#modal-cancel").addEventListener("click", close);
-
   document.addEventListener("keydown", function onKey(e) {
     if (e.key === "Escape") { close(); document.removeEventListener("keydown", onKey); }
   });
 
-  /* stars */
   overlay.querySelectorAll(".modal-star").forEach((btn) => {
     btn.addEventListener("click", () => {
       const n = parseInt(btn.dataset.n);
@@ -355,7 +369,6 @@ function openReviewModal(playId) {
       });
       overlay.querySelector("#modal-rating-text").textContent = tempRating ? RATING_LABELS[tempRating] : "";
     });
-
     btn.addEventListener("mouseenter", () => {
       const n = parseInt(btn.dataset.n);
       overlay.querySelectorAll(".modal-star").forEach((s) => {
@@ -376,7 +389,6 @@ function openReviewModal(playId) {
     overlay.querySelector("#modal-rating-text").textContent = tempRating ? RATING_LABELS[tempRating] : "";
   });
 
-  /* recommendation */
   overlay.querySelectorAll(".rec-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const val = btn.dataset.rec;
@@ -386,15 +398,11 @@ function openReviewModal(playId) {
     });
   });
 
-  /* save */
   overlay.querySelector("#modal-save").addEventListener("click", () => {
     const dateSeen = overlay.querySelector("#modal-date").value;
     const review = overlay.querySelector("#modal-review").value.trim();
     setPlayState(playId, {
-      rating: tempRating,
-      recommendation: tempRec,
-      dateSeen,
-      review,
+      rating: tempRating, recommendation: tempRec, dateSeen, review,
       seen: tempRating > 0 || review || dateSeen ? true : getPlayState(playId).seen,
     });
     close();
@@ -406,32 +414,78 @@ function openReviewModal(playId) {
 function render() {
   const root = document.getElementById("app");
   const playId = getPage();
-  root.innerHTML = playId ? renderDetail(playId) : renderHome();
+
+  if (playId) {
+    root.innerHTML = renderDetail(playId);
+  } else if (currentTab === "plays") {
+    root.innerHTML = renderHome();
+  } else if (currentTab === "friends") {
+    root.innerHTML = renderPlaceholderTab("Φίλοι");
+  } else if (currentTab === "lists") {
+    root.innerHTML = renderPlaceholderTab("Λίστες");
+  }
+
+  updateTabs();
   attachEvents();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  if (playId) window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function updateTabs() {
+  document.querySelectorAll(".nav-tab").forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.tab === currentTab && !getPage());
+  });
 }
 
 /* ── Events ────────────────────────────────────────── */
 function attachEvents() {
   const root = document.getElementById("app");
 
-  root.querySelectorAll(".play-card").forEach((card) => {
-    card.addEventListener("click", (e) => {
-      if (e.target.closest("button")) return;
-      navigate(card.dataset.id);
+  /* tabs */
+  document.querySelectorAll(".nav-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      currentTab = tab.dataset.tab;
+      history.pushState({}, "", "./");
+      render();
     });
   });
 
-  root.querySelectorAll("[data-nav]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      navigate(btn.dataset.nav);
-    });
+  /* poster cards → navigate */
+  root.querySelectorAll(".poster-card").forEach((card) => {
+    card.addEventListener("click", () => navigate(card.dataset.id));
   });
 
+  /* back button */
   const back = document.getElementById("back-btn");
   if (back) back.addEventListener("click", () => navigate(null));
 
+  /* search */
+  const searchInput = document.getElementById("search-input");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      searchQuery = e.target.value;
+      renderGrid();
+    });
+    const clearBtn = document.getElementById("search-clear");
+    if (clearBtn) clearBtn.addEventListener("click", () => {
+      searchQuery = "";
+      renderGrid();
+    });
+  }
+
+  /* filters */
+  const genreSelect = document.getElementById("filter-genre");
+  if (genreSelect) genreSelect.addEventListener("change", (e) => {
+    filterGenre = e.target.value;
+    renderGrid();
+  });
+  const venueSelect = document.getElementById("filter-venue");
+  if (venueSelect) venueSelect.addEventListener("change", (e) => {
+    filterVenue = e.target.value;
+    renderGrid();
+  });
+
+  /* seen / watchlist toggles */
   root.querySelectorAll("[data-toggle]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -446,12 +500,10 @@ function attachEvents() {
 
   /* rating strip → open modal */
   root.querySelectorAll("[data-open-review]").forEach((strip) => {
-    strip.addEventListener("click", () => {
-      openReviewModal(strip.dataset.openReview);
-    });
+    strip.addEventListener("click", () => openReviewModal(strip.dataset.openReview));
   });
 
-  /* strip stars: direct rating shortcut (also opens modal) */
+  /* strip stars */
   root.querySelectorAll(".strip-star").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -461,7 +513,6 @@ function attachEvents() {
       setPlayState(playId, { rating: cur === n ? 0 : n });
       openReviewModal(playId);
     });
-
     btn.addEventListener("mouseenter", (e) => {
       e.stopPropagation();
       const n = parseInt(btn.dataset.n);
@@ -485,6 +536,58 @@ function attachEvents() {
       });
     });
   });
+}
+
+/* ── Fast grid-only re-render (for search/filter) ── */
+function renderGrid() {
+  const plays = filterPlays();
+  const grid = document.querySelector(".poster-grid");
+  const count = document.querySelector(".result-count");
+  const noRes = document.querySelector(".no-results");
+
+  if (grid) {
+    grid.innerHTML = plays.map((p) => {
+      const ps = getPlayState(p.id);
+      const ratingOverlay = ps.rating ? `<div class="poster-rating">★ ${ps.rating}</div>` : "";
+      const recOverlay = ps.recommendation
+        ? `<div class="poster-rec rec-${ps.recommendation}">${recIcon(ps.recommendation, 14)}</div>` : "";
+      return `
+        <article class="poster-card fade-in" data-id="${esc(p.id)}">
+          <div class="poster-img">
+            <img src="${esc(p.image)}" alt="${esc(p.titleGr)}" loading="lazy"
+                 onerror="this.src='${esc(p.imageFallback || "")}'">
+            ${ratingOverlay}
+            ${recOverlay}
+          </div>
+          <div class="poster-title">${esc(p.titleGr)}</div>
+        </article>`;
+    }).join("");
+
+    grid.querySelectorAll(".poster-card").forEach((card) => {
+      card.addEventListener("click", () => navigate(card.dataset.id));
+    });
+  }
+
+  if (count) count.textContent = `${plays.length} παραστάσεις`;
+
+  if (noRes) noRes.remove();
+  if (plays.length === 0 && grid) {
+    grid.insertAdjacentHTML("afterend", '<div class="no-results">Δεν βρέθηκαν παραστάσεις.</div>');
+  }
+
+  // Update search input UI
+  const input = document.getElementById("search-input");
+  if (input && input.value !== searchQuery) input.value = searchQuery;
+  const wrap = document.querySelector(".search-wrap");
+  if (wrap) {
+    let clearBtn = wrap.querySelector(".search-clear");
+    if (searchQuery && !clearBtn) {
+      wrap.insertAdjacentHTML("beforeend", '<button class="search-clear" id="search-clear">&times;</button>');
+      wrap.querySelector(".search-clear").addEventListener("click", () => { searchQuery = ""; renderGrid(); });
+    } else if (!searchQuery && clearBtn) {
+      clearBtn.remove();
+    }
+  }
 }
 
 /* ── Init ──────────────────────────────────────────── */

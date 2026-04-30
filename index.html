@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Σκηνή — Θέατρο Αθήνας</title>
+  <title>Aulaia.gr — Θέατρο Αθήνας</title>
   <meta name="description" content="Ανακάλυψε, βαθμολόγησε και μοιράσου θεατρικές παραστάσεις στην Αθήνα." />
-  <meta property="og:title" content="Σκηνή — Θέατρο Αθήνας" />
+  <meta property="og:title" content="Aulaia.gr — Θέατρο Αθήνας" />
   <meta property="og:description" content="Το Letterboxd του αθηναϊκού θεάτρου." />
   <meta property="og:type" content="website" />
 
-  <!-- Inter font -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -19,23 +18,20 @@
 <body>
 
   <nav class="nav">
-    <a class="nav-logo" href="./" onclick="event.preventDefault(); history.pushState({}, '', './'); render();">
-      Σκηνή<span>.gr</span>
+    <a class="nav-logo" href="./" onclick="event.preventDefault(); navigateHome();">
+      Aulaia<span>.gr</span>
     </a>
-    <div class="nav-links">
-      <a href="./" class="active" onclick="event.preventDefault(); history.pushState({}, '', './'); render();">Παραστάσεις</a>
-      <a href="#" title="Σύντομα">Φίλοι</a>
-      <a href="#" title="Σύντομα">Λίστες</a>
+    <div class="nav-tabs" id="nav-tabs">
+      <button class="nav-tab active" data-tab="plays">Παραστάσεις</button>
+      <button class="nav-tab" data-tab="friends">Φίλοι</button>
+      <button class="nav-tab" data-tab="lists">Λίστες</button>
     </div>
   </nav>
 
   <main id="app"></main>
 
   <footer>
-    <p>Σκηνή.gr — Πληροφορίες από <a href="https://www.more.com/gr-el/tickets/theatre/" target="_blank" rel="noopener">more.com</a> &
-      <a href="https://www.onassis.org" target="_blank" rel="noopener">Στέγη Ωνάση</a>.
-      Φτιαγμένο με αγάπη για το αθηναϊκό θέατρο.
-    </p>
+    <p>Aulaia.gr — Φτιαγμένο με αγάπη για το αθηναϊκό θέατρο.</p>
   </footer>
 
   <script src="js/data.js"></script>
