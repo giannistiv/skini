@@ -25,10 +25,54 @@ function setPlayState(id, patch) {
 }
 
 /* ── Filters state ────────────────────────────────── */
-let currentTab = "plays";
+let currentTab = "feed";
 let searchQuery = "";
 let filterGenre = "";
 let filterVenue = "";
+
+/* ── Example feed reviews (remove later) ─────────── */
+const FEED_REVIEWS = [
+  {
+    user: "Μαρία Κ.",
+    avatar: "ΜΚ",
+    playId: "i-diki",
+    rating: 5,
+    recommendation: "recommend",
+    review: "Ανατριχιαστική ερμηνεία! Ο Λαζόπουλος σε ρόλο που δεν τον έχεις ξαναδεί. Η σκηνοθεσία του Μαρκουλάκη κρατάει την ένταση σε όλη τη διάρκεια. Πρέπει να το δείτε.",
+    date: "2025-04-18",
+    likes: 12,
+  },
+  {
+    user: "Γιάννης Τ.",
+    avatar: "ΓΤ",
+    playId: "macbeth",
+    rating: 4,
+    recommendation: "recommend",
+    review: "Πολύ δυνατή παραγωγή. Η μετάφραση λειτουργεί εξαιρετικά και οι ερμηνείες είναι σε πολύ υψηλό επίπεδο. Μόνο η διάρκεια κουράζει λίγο στο δεύτερο μέρος.",
+    date: "2025-04-10",
+    likes: 8,
+  },
+  {
+    user: "Ελένη Π.",
+    avatar: "ΕΠ",
+    playId: "antigoni",
+    rating: 3,
+    recommendation: "meh",
+    review: "Καλή προσπάθεια αλλά δεν με συγκίνησε ιδιαίτερα. Η σκηνογραφία ήταν εντυπωσιακή, ωστόσο η σκηνοθετική προσέγγιση δεν με έπεισε πλήρως.",
+    date: "2025-03-28",
+    likes: 4,
+  },
+  {
+    user: "Δημήτρης Α.",
+    avatar: "ΔΑ",
+    playId: "bussinokipos",
+    rating: 5,
+    recommendation: "recommend",
+    review: "Τσέχοφ στα καλύτερά του. Σπάνια βλέπεις τόσο ομοιόμορφο σύνολο ηθοποιών στην ελληνική σκηνή. Η τελευταία πράξη σε αφήνει με κόμπο στο στομάχι.",
+    date: "2025-04-22",
+    likes: 15,
+  },
+];
 
 /* ── Router ────────────────────────────────────────── */
 function getPage() {
@@ -44,7 +88,7 @@ function navigate(playId) {
 
 function navigateHome() {
   history.pushState({}, "", "./");
-  currentTab = "plays";
+  currentTab = "feed";
   render();
 }
 
@@ -287,6 +331,51 @@ function renderDetail(playId) {
     </div>`;
 }
 
+/* ── Feed Tab (social timeline) ───────────────────── */
+function renderFeed() {
+  const cards = FEED_REVIEWS.map((r) => {
+    const play = PLAYS.find((p) => p.id === r.playId);
+    if (!play) return "";
+
+    const stars = "★".repeat(r.rating) + "☆".repeat(5 - r.rating);
+    const recHtml = r.recommendation ? recBadge(r.recommendation) : "";
+
+    const dateObj = new Date(r.date);
+    const dateStr = dateObj.toLocaleDateString("el-GR", { day: "numeric", month: "short", year: "numeric" });
+
+    return `
+      <article class="feed-card fade-in">
+        <div class="feed-header">
+          <div class="feed-avatar">${esc(r.avatar)}</div>
+          <div class="feed-user-info">
+            <span class="feed-username">${esc(r.user)}</span>
+            <span class="feed-date">${esc(dateStr)}</span>
+          </div>
+        </div>
+        <div class="feed-body">
+          <div class="feed-play" data-id="${esc(play.id)}">
+            <img class="feed-play-img" src="${esc(play.image)}" alt="${esc(play.titleGr)}"
+                 onerror="this.src='${esc(play.imageFallback || "")}'">
+            <div class="feed-play-info">
+              <div class="feed-play-title">${esc(play.titleGr)}</div>
+              <div class="feed-play-meta">${play.director ? esc(play.director) : ""} ${play.venue ? "· " + esc(play.venue) : ""}</div>
+              <div class="feed-rating">
+                <span class="feed-stars">${stars}</span>
+                ${recHtml}
+              </div>
+            </div>
+          </div>
+          <p class="feed-review-text">${esc(r.review)}</p>
+        </div>
+        <div class="feed-footer">
+          <button class="feed-like-btn">♡ ${r.likes}</button>
+        </div>
+      </article>`;
+  }).join("");
+
+  return `<div class="feed-timeline">${cards}</div>`;
+}
+
 /* ── Placeholder tabs ─────────────────────────────── */
 function renderPlaceholderTab(name) {
   return `<div class="tab-placeholder"><p>${esc(name)} — Σύντομα διαθέσιμο</p></div>`;
@@ -417,6 +506,8 @@ function render() {
 
   if (playId) {
     root.innerHTML = renderDetail(playId);
+  } else if (currentTab === "feed") {
+    root.innerHTML = renderFeed();
   } else if (currentTab === "plays") {
     root.innerHTML = renderHome();
   } else if (currentTab === "friends") {
@@ -453,6 +544,11 @@ function attachEvents() {
   /* poster cards → navigate */
   root.querySelectorAll(".poster-card").forEach((card) => {
     card.addEventListener("click", () => navigate(card.dataset.id));
+  });
+
+  /* feed play cards → navigate */
+  root.querySelectorAll(".feed-play").forEach((el) => {
+    el.addEventListener("click", () => navigate(el.dataset.id));
   });
 
   /* back button */
