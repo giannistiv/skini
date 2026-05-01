@@ -459,12 +459,8 @@ function renderProfile() {
           <input type="text" id="profile-name" class="modal-input" value="${esc(user.displayName || "")}" maxlength="30">
         </div>
         <div class="modal-section">
-          <label class="modal-label">Φωτογραφία προφίλ</label>
-          <label class="profile-upload-btn" for="profile-photo-file">
-            Ανέβασε φωτογραφία
-            <input type="file" id="profile-photo-file" accept="image/*" hidden>
-          </label>
-          <span class="profile-file-name" id="profile-file-name"></span>
+          <label class="modal-label" for="profile-photo-url">URL φωτογραφίας</label>
+          <input type="url" id="profile-photo-url" class="modal-input" value="${esc(user.photoURL || "")}" placeholder="https://...">
         </div>
         <div class="profile-error" id="profile-error"></div>
         <div class="profile-success" id="profile-success"></div>
@@ -766,21 +762,12 @@ function attachEvents() {
   const back = document.getElementById("back-btn");
   if (back) back.addEventListener("click", () => navigate(null));
 
-  /* profile file picker label */
-  const fileInput = document.getElementById("profile-photo-file");
-  if (fileInput) {
-    fileInput.addEventListener("change", () => {
-      const label = document.getElementById("profile-file-name");
-      label.textContent = fileInput.files[0] ? fileInput.files[0].name : "";
-    });
-  }
-
   /* profile save */
   const profileSave = document.getElementById("profile-save");
   if (profileSave) {
     profileSave.addEventListener("click", async () => {
       const nameInput = document.getElementById("profile-name");
-      const fileInput = document.getElementById("profile-photo-file");
+      const photoInput = document.getElementById("profile-photo-url");
       const errorEl = document.getElementById("profile-error");
       const successEl = document.getElementById("profile-success");
       errorEl.textContent = "";
@@ -791,19 +778,16 @@ function attachEvents() {
 
       try {
         const newName = nameInput.value.trim();
+        const newPhoto = photoInput.value.trim();
         if (!newName) throw new Error("Το όνομα δεν μπορεί να είναι κενό");
 
-        let photoURL = currentAuthUser.photoURL || "";
-        const file = fileInput.files[0];
-        if (file) {
-          profileSave.textContent = "Ανέβασμα φωτογραφίας…";
-          photoURL = await uploadProfilePhoto(file);
-        }
-
-        await currentAuthUser.updateProfile({ displayName: newName, photoURL });
+        await currentAuthUser.updateProfile({
+          displayName: newName,
+          photoURL: newPhoto || "",
+        });
         await db.collection("users").doc(currentAuthUser.uid).update({
           displayName: newName,
-          photoURL: photoURL || null,
+          photoURL: newPhoto || null,
         });
 
         successEl.textContent = "Οι αλλαγές αποθηκεύτηκαν!";

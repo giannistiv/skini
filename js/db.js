@@ -13,13 +13,10 @@ let db = null;
 let auth = null;
 let currentAuthUser = null;
 
-let storage = null;
-
 if (firebaseReady) {
   firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
   auth = firebase.auth();
-  storage = firebase.storage();
   auth.languageCode = "el";
 
   auth.onAuthStateChanged((user) => {
@@ -139,18 +136,6 @@ async function authGoogle() {
 
   localStorage.removeItem("aulaia_user");
   return user;
-}
-
-async function uploadProfilePhoto(file) {
-  if (!isLoggedIn() || !storage) throw new Error("Δεν είσαι συνδεδεμένος");
-  if (file.size > 2 * 1024 * 1024) throw new Error("Η φωτογραφία πρέπει να είναι κάτω από 2MB");
-  if (!file.type.startsWith("image/")) throw new Error("Μόνο αρχεία εικόνας επιτρέπονται");
-
-  const uid = getUserUid();
-  const ext = file.name.split(".").pop() || "jpg";
-  const ref = storage.ref(`avatars/${uid}.${ext}`);
-  await ref.put(file, { contentType: file.type });
-  return ref.getDownloadURL();
 }
 
 async function authLogOut() {
