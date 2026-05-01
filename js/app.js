@@ -415,6 +415,7 @@ async function loadFeed() {
   if (firebaseReady) {
     root.innerHTML = '<div class="feed-loading">Φόρτωση κριτικών…</div>';
     try {
+      await dbSeedExamples(EXAMPLE_REVIEWS);
       cachedFeedReviews = await dbGetFeedReviews();
     } catch (e) {
       console.error("Feed load error:", e);

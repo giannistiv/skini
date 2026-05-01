@@ -1,12 +1,13 @@
 /* ── Firebase Config ──────────────────────────────── */
 // FILL IN your Firebase project config from console.firebase.google.com
 const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
+  apiKey: "AIzaSyAKIzjXAwtBZ9AJW5MFXDNsM6uoEmXO0cY",
+  authDomain: "aulaia-a1302.firebaseapp.com",
+  databaseURL: "https://aulaia-a1302-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "aulaia-a1302",
+  storageBucket: "aulaia-a1302.firebasestorage.app",
+  messagingSenderId: "494620413039",
+  appId: "1:494620413039:web:69ecbf07720e9d42d6919a",
 };
 
 const firebaseReady = !!firebaseConfig.apiKey;
@@ -142,4 +143,31 @@ async function dbToggleLike(reviewId) {
   }
 
   return !alreadyLiked;
+}
+
+async function dbSeedExamples(examples) {
+  if (!firebaseReady) return;
+  if (localStorage.getItem("aulaia_seeded")) return;
+  const snap = await db.collection("reviews").limit(1).get();
+  if (!snap.empty) { localStorage.setItem("aulaia_seeded", "1"); return; }
+
+  const batch = db.batch();
+  examples.forEach((r) => {
+    const ref = db.collection("reviews").doc();
+    batch.set(ref, {
+      playId: r.playId,
+      userName: r.userName,
+      userInitials: r.userInitials,
+      rating: r.rating,
+      recommendation: r.recommendation,
+      review: r.review,
+      dateSeen: r.dateSeen,
+      likedBy: [],
+      likes: 0,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+  await batch.commit();
+  localStorage.setItem("aulaia_seeded", "1");
 }
