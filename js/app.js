@@ -343,6 +343,8 @@ function renderFeed() {
     const dateObj = new Date(r.date);
     const dateStr = dateObj.toLocaleDateString("el-GR", { day: "numeric", month: "short", year: "numeric" });
 
+    const needsClamp = r.review.length > 120;
+
     return `
       <article class="feed-card fade-in">
         <div class="feed-header">
@@ -365,7 +367,8 @@ function renderFeed() {
               </div>
             </div>
           </div>
-          <p class="feed-review-text">${esc(r.review)}</p>
+          <p class="feed-review-text${needsClamp ? " clamped" : ""}">${esc(r.review)}</p>
+          ${needsClamp ? '<button class="feed-read-more">Περισσότερα…</button>' : ""}
         </div>
         <div class="feed-footer">
           <button class="feed-like-btn">♡ ${r.likes}</button>
@@ -373,7 +376,38 @@ function renderFeed() {
       </article>`;
   }).join("");
 
-  return `<div class="feed-timeline">${cards}</div>`;
+  // Trending sidebar — top 5 plays by name
+  const trending = PLAYS.slice(0, 5).map((p, i) =>
+    `<div class="trending-item" data-id="${esc(p.id)}">
+      <span class="trending-rank">${i + 1}</span>
+      <span class="trending-name">${esc(p.titleGr)}</span>
+      <span class="trending-genre">${esc((p.genre || [])[0] || "")}</span>
+    </div>`
+  ).join("");
+
+  // Stats sidebar
+  const totalPlays = PLAYS.length;
+  const totalReviews = FEED_REVIEWS.length;
+  const avgRating = (FEED_REVIEWS.reduce((s, r) => s + r.rating, 0) / totalReviews).toFixed(1);
+
+  return `
+    <div class="feed-layout">
+      <div class="feed-sidebar">
+        <div class="feed-sidebar-card">
+          <h3>Trending</h3>
+          ${trending}
+        </div>
+      </div>
+      <div class="feed-timeline">${cards}</div>
+      <div class="feed-sidebar">
+        <div class="feed-sidebar-card">
+          <h3>Στατιστικά</h3>
+          <div class="stat-row"><span class="stat-label">Παραστάσεις</span><span class="stat-value">${totalPlays}</span></div>
+          <div class="stat-row"><span class="stat-label">Κριτικές</span><span class="stat-value">${totalReviews}</span></div>
+          <div class="stat-row"><span class="stat-label">Μέση βαθμολογία</span><span class="stat-value">★ ${avgRating}</span></div>
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ── Placeholder tabs ─────────────────────────────── */
@@ -549,6 +583,21 @@ function attachEvents() {
   /* feed play cards → navigate */
   root.querySelectorAll(".feed-play").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.id));
+  });
+
+  /* feed trending items → navigate */
+  root.querySelectorAll(".trending-item").forEach((el) => {
+    el.addEventListener("click", () => navigate(el.dataset.id));
+  });
+
+  /* feed read-more toggle */
+  root.querySelectorAll(".feed-read-more").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const text = btn.previousElementSibling;
+      const expanded = !text.classList.contains("clamped");
+      text.classList.toggle("clamped", expanded);
+      btn.textContent = expanded ? "Περισσότερα…" : "Λιγότερα";
+    });
   });
 
   /* back button */

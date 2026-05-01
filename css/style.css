@@ -219,11 +219,77 @@ img { display: block; max-width: 100%; }
   font-size: .9rem;
 }
 
-/* ── Feed Timeline ────────────────────────────────── */
-.feed-timeline {
-  max-width: 620px;
+/* ── Feed Layout ──────────────────────────────────── */
+.feed-layout {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 620px) 1fr;
+  gap: 1.5rem;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 1rem 1rem 3rem;
+  padding: 1.5rem 2rem 3rem;
+}
+
+.feed-sidebar {
+  position: sticky; top: 80px;
+  align-self: start;
+}
+
+.feed-sidebar-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.feed-sidebar-card h3 {
+  font-size: .72rem; font-weight: 700;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: .85rem;
+  padding-bottom: .5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.trending-item {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .5rem 0;
+  border-bottom: 1px solid rgba(46,51,72,.4);
+  cursor: pointer;
+  transition: color .15s;
+}
+.trending-item:last-child { border-bottom: none; }
+.trending-item:hover { color: var(--accent); }
+.trending-rank {
+  font-size: .7rem; font-weight: 800;
+  color: var(--muted); width: 1.2rem; text-align: center;
+}
+.trending-name {
+  font-size: .82rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.trending-genre {
+  font-size: .7rem; color: var(--muted);
+  margin-left: auto; flex-shrink: 0;
+}
+
+.stat-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .45rem 0;
+  font-size: .82rem;
+}
+.stat-row .stat-label { color: var(--muted); }
+.stat-row .stat-value { font-weight: 700; color: var(--text); }
+
+.feed-timeline {
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .feed-layout {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+  .feed-sidebar { display: none; }
 }
 
 .feed-card {
@@ -321,6 +387,23 @@ img { display: block; max-width: 100%; }
   color: var(--text);
   line-height: 1.6;
 }
+.feed-review-text.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.feed-read-more {
+  background: none; border: none;
+  color: var(--accent);
+  font-size: .8rem; font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  padding: .2rem 0;
+  margin-top: .2rem;
+  transition: opacity .15s;
+}
+.feed-read-more:hover { opacity: .75; }
 
 .feed-footer {
   display: flex; align-items: center; gap: 1rem;
