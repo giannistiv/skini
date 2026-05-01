@@ -319,7 +319,7 @@ function renderDetail(playId) {
 
 /* ── Feed Tab (social timeline) ───────────────────── */
 function buildFeedHTML(reviews) {
-  const currentUser = getUser();
+  const uid = getUserUid();
 
   const cards = reviews.map((r) => {
     const play = PLAYS.find((p) => p.id === r.playId);
@@ -338,7 +338,7 @@ function buildFeedHTML(reviews) {
     const reviewText = r.review || "";
     const needsClamp = reviewText.length > 120;
     const likedBy = r.likedBy || [];
-    const isLiked = currentUser && likedBy.includes(currentUser);
+    const isLiked = uid && likedBy.includes(uid);
     const likeCount = r.likes || 0;
 
     return `
@@ -549,7 +549,11 @@ function openReviewModal(playId) {
     });
 
     if (firebaseReady && (tempRating > 0 || review)) {
-      await ensureUser();
+      if (!isLoggedIn()) {
+        close();
+        showAuthModal("login");
+        return;
+      }
       dbSaveReview(playId, {
         rating: tempRating, recommendation: tempRec, dateSeen, review,
       });
@@ -634,8 +638,12 @@ function attachEvents() {
       const reviewId = btn.dataset.reviewId;
       if (!reviewId) return;
 
+      if (!isLoggedIn()) {
+        showAuthModal("login");
+        return;
+      }
+
       if (firebaseReady) {
-        await ensureUser();
         const nowLiked = await dbToggleLike(reviewId);
         if (nowLiked !== null) {
           const countEl = btn.querySelector(".like-count");
@@ -645,13 +653,6 @@ function attachEvents() {
           btn.classList.toggle("liked", nowLiked);
           btn.firstChild.textContent = nowLiked ? "♥ " : "♡ ";
         }
-      } else {
-        const countEl = btn.querySelector(".like-count");
-        let count = parseInt(countEl.textContent) || 0;
-        const isLiked = btn.classList.toggle("liked");
-        count += isLiked ? 1 : -1;
-        countEl.textContent = count;
-        btn.firstChild.textContent = isLiked ? "♥ " : "♡ ";
       }
     });
   });
@@ -791,6 +792,136 @@ function renderGrid() {
   }
 }
 
+/* ── Auth UI ──────────────────────────────────────── */
+function updateNavAuth() {
+  const container = document.getElementById("nav-auth");
+  if (!container) return;
+
+  if (isLoggedIn()) {
+    container.innerHTML = `
+      <div class="nav-user">
+        <div class="nav-user-avatar">${esc(getUserInitials())}</div>
+        <span class="nav-user-name">${esc(getUser())}</span>
+        <button class="nav-logout-btn" id="nav-logout">Έξοδος</button>
+      </div>`;
+    container.querySelector("#nav-logout").addEventListener("click", async () => {
+      await authLogOut();
+      render();
+    });
+  } else {
+    container.innerHTML = `
+      <button class="nav-login-btn" id="nav-login">Σύνδεση</button>
+      <button class="nav-signup-btn" id="nav-signup">Εγγραφή</button>`;
+    container.querySelector("#nav-login").addEventListener("click", () => showAuthModal("login"));
+    container.querySelector("#nav-signup").addEventListener("click", () => showAuthModal("signup"));
+  }
+}
+
+function showAuthModal(mode) {
+  const isLogin = mode === "login";
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card" style="max-width:400px">
+      <button class="modal-close" aria-label="Κλείσιμο">&times;</button>
+      <div class="modal-title">${isLogin ? "Σύνδεση" : "Δημιουργία λογαριασμού"}</div>
+      <div class="modal-subtitle">${isLogin ? "Καλώς ήρθες πίσω!" : "Γίνε μέλος του Aulaia"}</div>
+      <div class="auth-error" id="auth-error"></div>
+      ${!isLogin ? `
+      <div class="modal-section">
+        <label class="modal-label" for="auth-display">Εμφανιζόμενο όνομα</label>
+        <input type="text" id="auth-display" class="modal-input" placeholder="π.χ. Μαρία Κ." maxlength="30" autocomplete="name">
+      </div>` : ""}
+      <div class="modal-section">
+        <label class="modal-label" for="auth-username">Username</label>
+        <input type="text" id="auth-username" class="modal-input" placeholder="π.χ. maria_k" maxlength="20" autocomplete="username">
+      </div>
+      <div class="modal-section">
+        <label class="modal-label" for="auth-password">Κωδικός</label>
+        <input type="password" id="auth-password" class="modal-input" placeholder="Τουλάχιστον 8 χαρακτήρες" autocomplete="${isLogin ? "current-password" : "new-password"}">
+      </div>
+      ${!isLogin ? `
+      <div class="modal-section">
+        <label class="modal-label" for="auth-password2">Επιβεβαίωση κωδικού</label>
+        <input type="password" id="auth-password2" class="modal-input" placeholder="Ξαναγράψε τον κωδικό" autocomplete="new-password">
+      </div>` : ""}
+      <div class="modal-actions" style="flex-direction:column;gap:.6rem">
+        <button class="btn btn-primary" id="auth-submit" style="width:100%;justify-content:center">${isLogin ? "Σύνδεση" : "Εγγραφή"}</button>
+        <button class="auth-switch" id="auth-switch">
+          ${isLogin ? "Δεν έχεις λογαριασμό; <strong>Εγγραφή</strong>" : "Έχεις ήδη λογαριασμό; <strong>Σύνδεση</strong>"}
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("open"));
+
+  const errorEl = overlay.querySelector("#auth-error");
+
+  function close() {
+    overlay.classList.remove("open");
+    setTimeout(() => overlay.remove(), 200);
+  }
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.style.display = "block";
+  }
+
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector(".modal-close").addEventListener("click", close);
+  document.addEventListener("keydown", function onKey(e) {
+    if (e.key === "Escape") { close(); document.removeEventListener("keydown", onKey); }
+  });
+
+  overlay.querySelector("#auth-switch").addEventListener("click", () => {
+    close();
+    showAuthModal(isLogin ? "signup" : "login");
+  });
+
+  overlay.querySelector("#auth-submit").addEventListener("click", async () => {
+    const submitBtn = overlay.querySelector("#auth-submit");
+    const username = overlay.querySelector("#auth-username").value.trim();
+    const password = overlay.querySelector("#auth-password").value;
+
+    errorEl.style.display = "none";
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Περίμενε…";
+
+    try {
+      if (isLogin) {
+        await authLogIn(username, password);
+      } else {
+        const display = overlay.querySelector("#auth-display").value.trim();
+        const password2 = overlay.querySelector("#auth-password2").value;
+        if (password !== password2) throw new Error("Οι κωδικοί δεν ταιριάζουν");
+        await authSignUp(display, username, password);
+      }
+      close();
+      render();
+    } catch (e) {
+      showError(e.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = isLogin ? "Σύνδεση" : "Εγγραφή";
+    }
+  });
+
+  // Enter key submits
+  overlay.querySelectorAll(".modal-input").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") overlay.querySelector("#auth-submit").click();
+    });
+  });
+
+  // Focus first input
+  const firstInput = overlay.querySelector("#auth-display") || overlay.querySelector("#auth-username");
+  setTimeout(() => firstInput.focus(), 100);
+}
+
 /* ── Init ──────────────────────────────────────────── */
 window.addEventListener("popstate", render);
-document.addEventListener("DOMContentLoaded", render);
+document.addEventListener("DOMContentLoaded", () => {
+  render();
+  updateNavAuth();
+});

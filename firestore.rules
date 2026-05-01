@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Reviews: public read, authenticated create, owner or like-toggle update
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if request.auth != null && (
+        // Author can edit their own review
+        (resource.data.uid == request.auth.uid
+          && request.resource.data.uid == request.auth.uid)
+        ||
+        // Any authenticated user can toggle likes (only likedBy + likes fields)
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['likedBy', 'likes'])
+      );
+      allow delete: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+    }
+
+    // User profiles: public read, owner write
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId;
+    }
+
+    // Username reservations: public read, owner create/delete
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+    }
+  }
+}
