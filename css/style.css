@@ -137,6 +137,28 @@ img { display: block; max-width: 100%; }
 .auth-switch:hover { color: var(--text); }
 .auth-switch strong { color: var(--accent); }
 
+.auth-divider {
+  display: flex; align-items: center; gap: .75rem;
+  color: var(--muted); font-size: .78rem;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ""; flex: 1; height: 1px;
+  background: var(--border);
+}
+
+.auth-google-btn {
+  background: var(--surface2) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  gap: .5rem !important;
+  font-weight: 600 !important;
+  transition: all .15s;
+}
+.auth-google-btn:hover {
+  border-color: var(--muted) !important;
+  background: var(--surface) !important;
+}
+
 /* ── Toolbar (search + filters) ───────────────────── */
 .toolbar {
   padding: 1.25rem 2rem .75rem;

@@ -122,6 +122,24 @@ async function authLogIn(username, password) {
   }
 }
 
+async function authGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  const result = await auth.signInWithPopup(provider);
+  const user = result.user;
+
+  const profileRef = db.collection("users").doc(user.uid);
+  const profileSnap = await profileRef.get();
+  if (!profileSnap.exists) {
+    await profileRef.set({
+      displayName: user.displayName || "Google User",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  localStorage.removeItem("aulaia_user");
+  return user;
+}
+
 async function authLogOut() {
   await auth.signOut();
 }
