@@ -67,9 +67,6 @@ function validatePassword(p) {
 }
 
 async function authSignUp(displayName, username, password) {
-  if (!displayName || displayName.trim().length < 2)
-    throw new Error("Συμπλήρωσε το όνομά σου (τουλάχιστον 2 χαρακτήρες)");
-
   const uerr = validateUsername(username);
   if (uerr) throw new Error(uerr);
 
@@ -77,18 +74,19 @@ async function authSignUp(displayName, username, password) {
   if (perr) throw new Error(perr);
 
   const uname = username.toLowerCase();
+  const name = displayName && displayName.trim().length >= 2 ? displayName.trim() : uname;
 
   const taken = await db.collection("usernames").doc(uname).get();
   if (taken.exists) throw new Error("Αυτό το username είναι ήδη κατειλημμένο");
 
   const email = uname + "@aulaia.app";
   const cred = await auth.createUserWithEmailAndPassword(email, password);
-  await cred.user.updateProfile({ displayName: displayName.trim() });
+  await cred.user.updateProfile({ displayName: name });
 
   const batch = db.batch();
   batch.set(db.collection("users").doc(cred.user.uid), {
     username: uname,
-    displayName: displayName.trim(),
+    displayName: name,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
   });
   batch.set(db.collection("usernames").doc(uname), {
