@@ -210,6 +210,16 @@ async function dbToggleLike(reviewId) {
   return !alreadyLiked;
 }
 
+async function dbGetUserProfile(uid) {
+  if (!firebaseReady) return null;
+  const userDoc = await db.collection("users").doc(uid).get();
+  const snap = await db.collection("reviews").where("uid", "==", uid).get();
+  return {
+    user: userDoc.exists ? userDoc.data() : null,
+    reviews: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+  };
+}
+
 async function dbSeedExamples(examples) {
   if (!firebaseReady) return;
   if (localStorage.getItem("aulaia_seeded")) return;

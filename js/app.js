@@ -66,9 +66,20 @@ function getPage() {
   return params.get("play") || null;
 }
 
+function getUserPage() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("user") || null;
+}
+
 function navigate(playId) {
   const url = playId ? `?play=${playId}` : "./";
   history.pushState({}, "", url);
+  render();
+}
+
+function navigateToUser(uid) {
+  if (!uid || uid === "system") return;
+  history.pushState({}, "", `?user=${uid}`);
   render();
 }
 
@@ -344,10 +355,12 @@ function buildFeedHTML(reviews) {
     return `
       <article class="feed-card fade-in">
         <div class="feed-header">
-          <div class="feed-avatar">${esc(r.userInitials || "??")}</div>
-          <div class="feed-user-info">
-            <span class="feed-username">${esc(r.userName)}</span>
-            <span class="feed-date">${esc(dateStr)}</span>
+          <div class="feed-user-link" data-user-uid="${esc(r.uid || "")}">
+            <div class="feed-avatar">${esc(r.userInitials || "??")}</div>
+            <div class="feed-user-info">
+              <span class="feed-username">${esc(r.userName)}</span>
+              <span class="feed-date">${esc(dateStr)}</span>
+            </div>
           </div>
         </div>
         <div class="feed-body">
@@ -527,6 +540,187 @@ async function loadProfileReviews() {
   }
 }
 
+/* ── Public User Profile ──────────────────────────── */
+const MONTH_NAMES = [
+  "Ιανουάριος","Φεβρουάριος","Μάρτιος","Απρίλιος","Μάιος","Ιούνιος",
+  "Ιούλιος","Αύγουστος","Σεπτέμβριος","Οκτώβριος","Νοέμβριος","Δεκέμβριος"
+];
+const DAY_LABELS = ["Δε","Τρ","Τε","Πε","Πα","Σα","Κυ"];
+
+function buildTop4HTML(reviews) {
+  const top = reviews
+    .filter((r) => r.rating >= 4)
+    .sort((a, b) => b.rating - a.rating || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+    .slice(0, 4);
+  if (!top.length) return "";
+
+  const cards = top.map((r) => {
+    const play = PLAYS.find((p) => p.id === r.playId);
+    if (!play) return "";
+    return `
+      <div class="top4-card" data-id="${esc(play.id)}">
+        <img src="${esc(play.image)}" alt="${esc(play.titleGr)}"
+             onerror="this.src='${esc(play.imageFallback || "")}'">
+      </div>`;
+  }).join("");
+
+  return `
+    <div class="profile-section">
+      <div class="section-title">Αγαπημένες παραστάσεις</div>
+      <div class="top4-grid">${cards}</div>
+    </div>`;
+}
+
+function buildCalendarHTML(reviews) {
+  const dateMap = {};
+  reviews.forEach((r) => {
+    if (r.dateSeen) dateMap[r.dateSeen] = r;
+  });
+
+  const years = new Set();
+  reviews.forEach((r) => {
+    if (r.dateSeen) years.add(parseInt(r.dateSeen.split("-")[0]));
+  });
+  if (!years.size) years.add(new Date().getFullYear());
+  const sortedYears = [...years].sort((a, b) => b - a);
+
+  let html = "";
+  sortedYears.forEach((year) => {
+    html += `<div class="cal-year-label">${year}</div><div class="cal-year">`;
+    for (let m = 0; m < 12; m++) {
+      const daysInMonth = new Date(year, m + 1, 0).getDate();
+      let startDay = (new Date(year, m, 1).getDay() + 6) % 7;
+
+      html += `<div class="cal-month"><div class="cal-month-name">${MONTH_NAMES[m].slice(0, 3)}</div><div class="cal-grid">`;
+      DAY_LABELS.forEach((d) => (html += `<div class="cal-day-label">${d}</div>`));
+
+      for (let i = 0; i < startDay; i++) html += `<div class="cal-day empty"></div>`;
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const ds = `${year}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const review = dateMap[ds];
+
+        if (review) {
+          const play = PLAYS.find((p) => p.id === review.playId);
+          if (play) {
+            html += `
+              <div class="cal-day has-play" data-id="${esc(play.id)}" title="${esc(play.titleGr)}">
+                <img src="${esc(play.image)}" alt="" class="cal-thumb"
+                     onerror="this.src='${esc(play.imageFallback || "")}'">
+                <span class="cal-rating">${"★".repeat(review.rating || 0)}</span>
+              </div>`;
+          } else {
+            html += `<div class="cal-day"><span class="cal-num">${d}</span></div>`;
+          }
+        } else {
+          html += `<div class="cal-day"><span class="cal-num">${d}</span></div>`;
+        }
+      }
+      html += `</div></div>`;
+    }
+    html += `</div>`;
+  });
+
+  return html;
+}
+
+async function loadPublicProfile(uid) {
+  const root = document.getElementById("app");
+  root.innerHTML = '<div class="feed-loading">Φόρτωση προφίλ…</div>';
+
+  try {
+    const data = await dbGetUserProfile(uid);
+    if (!data || !data.user) {
+      root.innerHTML = '<div class="tab-placeholder"><p>Ο χρήστης δεν βρέθηκε.</p></div>';
+      return;
+    }
+
+    const { user, reviews } = data;
+    const initials = (user.displayName || "?")
+      .split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+    const photoUrl = user.photoURL;
+    const avatarHtml = photoUrl
+      ? `<img class="profile-photo" src="${esc(photoUrl)}" alt="">`
+      : `<div class="profile-avatar">${esc(initials)}</div>`;
+
+    const isOwnProfile = isLoggedIn() && getUserUid() === uid;
+    const totalRated = reviews.filter((r) => r.rating > 0).length;
+    const avgRating = totalRated
+      ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / totalRated).toFixed(1)
+      : "—";
+
+    const reviewCards = reviews
+      .filter((r) => r.review)
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+      .map((r) => {
+        const play = PLAYS.find((p) => p.id === r.playId);
+        if (!play) return "";
+        const stars = "★".repeat(r.rating || 0) + "☆".repeat(5 - (r.rating || 0));
+        const recHtml = r.recommendation ? recBadge(r.recommendation) : "";
+        return `
+          <div class="profile-review-card" data-id="${esc(play.id)}">
+            <img class="profile-review-img" src="${esc(play.image)}" alt="${esc(play.titleGr)}"
+                 onerror="this.src='${esc(play.imageFallback || "")}'">
+            <div class="profile-review-info">
+              <div class="profile-review-title">${esc(play.titleGr)}</div>
+              <div class="feed-rating"><span class="feed-stars">${stars}</span> ${recHtml}</div>
+              <p class="profile-review-text">${esc(r.review)}</p>
+            </div>
+          </div>`;
+      }).join("");
+
+    root.innerHTML = `
+      <div class="profile-page fade-in">
+        <button class="back-btn" id="back-btn">← Πίσω</button>
+
+        <div class="profile-header">
+          <div class="profile-photo-wrap">${avatarHtml}</div>
+          <div class="profile-details">
+            <h2 class="profile-display-name">${esc(user.displayName || "Χρήστης")}</h2>
+            <div class="profile-stats-row">
+              <span>${reviews.length} κριτικές</span>
+              <span>Μ.Ο. ★ ${avgRating}</span>
+            </div>
+            ${isOwnProfile ? '<button class="btn" id="edit-profile-btn">Επεξεργασία προφίλ</button>' : ""}
+          </div>
+        </div>
+
+        ${buildTop4HTML(reviews)}
+
+        <div class="profile-section">
+          <div class="section-title">Ημερολόγιο</div>
+          ${buildCalendarHTML(reviews)}
+        </div>
+
+        ${reviewCards ? `
+        <div class="profile-section">
+          <div class="section-title">Κριτικές</div>
+          <div class="profile-reviews">${reviewCards}</div>
+        </div>` : ""}
+      </div>`;
+
+    // Attach click events
+    root.querySelector("#back-btn").addEventListener("click", () => {
+      history.back();
+    });
+    const editBtn = root.querySelector("#edit-profile-btn");
+    if (editBtn) {
+      editBtn.addEventListener("click", () => {
+        currentTab = "profile";
+        history.pushState({}, "", "./");
+        render();
+      });
+    }
+    root.querySelectorAll("[data-id]").forEach((el) => {
+      el.addEventListener("click", () => navigate(el.dataset.id));
+    });
+    updateTabs();
+  } catch (e) {
+    console.error("Profile load error:", e);
+    root.innerHTML = '<div class="tab-placeholder"><p>Σφάλμα φόρτωσης προφίλ.</p></div>';
+  }
+}
+
 /* ── Placeholder tabs ─────────────────────────────── */
 function renderPlaceholderTab(name) {
   return `<div class="tab-placeholder"><p>${esc(name)} — Σύντομα διαθέσιμο</p></div>`;
@@ -667,7 +861,11 @@ function render() {
   const root = document.getElementById("app");
   const playId = getPage();
 
-  if (playId) {
+  const userUid = getUserPage();
+  if (userUid) {
+    loadPublicProfile(userUid);
+    return;
+  } else if (playId) {
     root.innerHTML = renderDetail(playId);
   } else if (currentTab === "feed") {
     loadFeed();
@@ -711,6 +909,11 @@ function attachEvents() {
   /* poster cards → navigate */
   root.querySelectorAll(".poster-card").forEach((card) => {
     card.addEventListener("click", () => navigate(card.dataset.id));
+  });
+
+  /* feed user links → user profile */
+  root.querySelectorAll(".feed-user-link").forEach((el) => {
+    el.addEventListener("click", () => navigateToUser(el.dataset.userUid));
   });
 
   /* feed play cards → navigate */
@@ -953,9 +1156,7 @@ function updateNavAuth() {
         <button class="nav-logout-btn" id="nav-logout">Έξοδος</button>
       </div>`;
     container.querySelector("#nav-profile").addEventListener("click", () => {
-      currentTab = "profile";
-      history.pushState({}, "", "./");
-      render();
+      navigateToUser(getUserUid());
     });
     container.querySelector("#nav-logout").addEventListener("click", async () => {
       await authLogOut();
