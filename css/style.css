@@ -608,6 +608,24 @@ img { display: block; max-width: 100%; }
   margin-bottom: .75rem;
 }
 
+.profile-upload-btn {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .8rem; font-weight: 600;
+  padding: .5rem 1rem;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+.profile-upload-btn:hover {
+  border-color: var(--accent); color: var(--accent);
+}
+.profile-file-name {
+  font-size: .78rem; color: var(--muted);
+  margin-left: .5rem;
+}
+
 .profile-actions {
   display: flex; gap: .75rem;
 }
