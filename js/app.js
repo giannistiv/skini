@@ -430,6 +430,98 @@ async function loadFeed() {
   attachEvents();
 }
 
+/* ── Profile Page ─────────────────────────────────── */
+function renderProfile() {
+  if (!isLoggedIn()) return '<div class="tab-placeholder"><p>Συνδέσου για να δεις το προφίλ σου.</p></div>';
+
+  const user = currentAuthUser;
+  const photoUrl = user.photoURL;
+  const avatarHtml = photoUrl
+    ? `<img class="profile-photo" src="${esc(photoUrl)}" alt="">`
+    : `<div class="profile-avatar">${esc(getUserInitials())}</div>`;
+
+  return `
+    <div class="profile-page fade-in">
+      <div class="profile-header">
+        <div class="profile-photo-wrap" id="profile-photo-wrap">
+          ${avatarHtml}
+          <div class="profile-photo-edit">Αλλαγή</div>
+        </div>
+        <div class="profile-details">
+          <h2 class="profile-display-name">${esc(user.displayName || "")}</h2>
+          <p class="profile-email">${esc(user.email || "")}</p>
+        </div>
+      </div>
+
+      <div class="profile-form">
+        <div class="modal-section">
+          <label class="modal-label" for="profile-name">Εμφανιζόμενο όνομα</label>
+          <input type="text" id="profile-name" class="modal-input" value="${esc(user.displayName || "")}" maxlength="30">
+        </div>
+        <div class="modal-section">
+          <label class="modal-label" for="profile-photo-url">URL φωτογραφίας</label>
+          <input type="url" id="profile-photo-url" class="modal-input" value="${esc(user.photoURL || "")}" placeholder="https://...">
+        </div>
+        <div class="profile-error" id="profile-error"></div>
+        <div class="profile-success" id="profile-success"></div>
+        <div class="profile-actions">
+          <button class="btn btn-primary" id="profile-save">Αποθήκευση αλλαγών</button>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <div class="section-title">Οι κριτικές μου</div>
+        <div id="profile-reviews" class="profile-reviews">Φόρτωση…</div>
+      </div>
+    </div>`;
+}
+
+async function loadProfileReviews() {
+  if (!firebaseReady || !isLoggedIn()) return;
+  const uid = getUserUid();
+  const container = document.getElementById("profile-reviews");
+  if (!container) return;
+
+  try {
+    const snap = await db.collection("reviews")
+      .where("uid", "==", uid)
+      .orderBy("createdAt", "desc")
+      .get();
+
+    if (snap.empty) {
+      container.innerHTML = '<p class="profile-no-reviews">Δεν έχεις γράψει κριτικές ακόμα.</p>';
+      return;
+    }
+
+    container.innerHTML = snap.docs.map((doc) => {
+      const r = doc.data();
+      const play = PLAYS.find((p) => p.id === r.playId);
+      if (!play) return "";
+      const rating = r.rating || 0;
+      const stars = "★".repeat(rating) + "☆".repeat(5 - rating);
+      const recHtml = r.recommendation ? recBadge(r.recommendation) : "";
+      const reviewText = r.review || "";
+
+      return `
+        <div class="profile-review-card" data-id="${esc(play.id)}">
+          <img class="profile-review-img" src="${esc(play.image)}" alt="${esc(play.titleGr)}"
+               onerror="this.src='${esc(play.imageFallback || "")}'">
+          <div class="profile-review-info">
+            <div class="profile-review-title">${esc(play.titleGr)}</div>
+            <div class="feed-rating">${'<span class="feed-stars">' + stars + '</span>'} ${recHtml}</div>
+            ${reviewText ? `<p class="profile-review-text">${esc(reviewText)}</p>` : ""}
+          </div>
+        </div>`;
+    }).join("");
+
+    container.querySelectorAll(".profile-review-card").forEach((card) => {
+      card.addEventListener("click", () => navigate(card.dataset.id));
+    });
+  } catch (e) {
+    container.innerHTML = '<p class="profile-no-reviews">Σφάλμα φόρτωσης.</p>';
+  }
+}
+
 /* ── Placeholder tabs ─────────────────────────────── */
 function renderPlaceholderTab(name) {
   return `<div class="tab-placeholder"><p>${esc(name)} — Σύντομα διαθέσιμο</p></div>`;
@@ -577,6 +669,9 @@ function render() {
     return;
   } else if (currentTab === "plays") {
     root.innerHTML = renderHome();
+  } else if (currentTab === "profile") {
+    root.innerHTML = renderProfile();
+    loadProfileReviews();
   } else if (currentTab === "friends") {
     root.innerHTML = renderPlaceholderTab("Φίλοι");
   } else if (currentTab === "lists") {
@@ -661,6 +756,47 @@ function attachEvents() {
   /* back button */
   const back = document.getElementById("back-btn");
   if (back) back.addEventListener("click", () => navigate(null));
+
+  /* profile save */
+  const profileSave = document.getElementById("profile-save");
+  if (profileSave) {
+    profileSave.addEventListener("click", async () => {
+      const nameInput = document.getElementById("profile-name");
+      const photoInput = document.getElementById("profile-photo-url");
+      const errorEl = document.getElementById("profile-error");
+      const successEl = document.getElementById("profile-success");
+      errorEl.textContent = "";
+      errorEl.style.display = "none";
+      successEl.style.display = "none";
+      profileSave.disabled = true;
+      profileSave.textContent = "Αποθήκευση…";
+
+      try {
+        const newName = nameInput.value.trim();
+        const newPhoto = photoInput.value.trim();
+        if (!newName) throw new Error("Το όνομα δεν μπορεί να είναι κενό");
+
+        const updates = { displayName: newName };
+        if (newPhoto) updates.photoURL = newPhoto;
+        else updates.photoURL = "";
+        await currentAuthUser.updateProfile(updates);
+
+        await db.collection("users").doc(currentAuthUser.uid).update({
+          displayName: newName,
+          photoURL: newPhoto || null,
+        });
+
+        successEl.textContent = "Οι αλλαγές αποθηκεύτηκαν!";
+        successEl.style.display = "block";
+        updateNavAuth();
+      } catch (e) {
+        errorEl.textContent = e.message;
+        errorEl.style.display = "block";
+      }
+      profileSave.disabled = false;
+      profileSave.textContent = "Αποθήκευση αλλαγών";
+    });
+  }
 
   /* search */
   const searchInput = document.getElementById("search-input");
@@ -799,14 +935,26 @@ function updateNavAuth() {
   if (!container) return;
 
   if (isLoggedIn()) {
+    const photoUrl = currentAuthUser.photoURL;
+    const avatarHtml = photoUrl
+      ? `<img class="nav-user-photo" src="${esc(photoUrl)}" alt="">`
+      : `<div class="nav-user-avatar">${esc(getUserInitials())}</div>`;
     container.innerHTML = `
       <div class="nav-user">
-        <div class="nav-user-avatar">${esc(getUserInitials())}</div>
-        <span class="nav-user-name">${esc(getUser())}</span>
+        <div class="nav-user-link" id="nav-profile">
+          ${avatarHtml}
+          <span class="nav-user-name">${esc(getUser())}</span>
+        </div>
         <button class="nav-logout-btn" id="nav-logout">Έξοδος</button>
       </div>`;
+    container.querySelector("#nav-profile").addEventListener("click", () => {
+      currentTab = "profile";
+      history.pushState({}, "", "./");
+      render();
+    });
     container.querySelector("#nav-logout").addEventListener("click", async () => {
       await authLogOut();
+      currentTab = "feed";
       render();
     });
   } else {
