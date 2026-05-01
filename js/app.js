@@ -489,7 +489,6 @@ async function loadProfileReviews() {
   try {
     const snap = await db.collection("reviews")
       .where("uid", "==", uid)
-      .orderBy("createdAt", "desc")
       .get();
 
     if (snap.empty) {
@@ -497,7 +496,13 @@ async function loadProfileReviews() {
       return;
     }
 
-    container.innerHTML = snap.docs.map((doc) => {
+    const docs = snap.docs.sort((a, b) => {
+      const ta = a.data().createdAt?.seconds || 0;
+      const tb = b.data().createdAt?.seconds || 0;
+      return tb - ta;
+    });
+
+    container.innerHTML = docs.map((doc) => {
       const r = doc.data();
       const play = PLAYS.find((p) => p.id === r.playId);
       if (!play) return "";
