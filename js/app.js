@@ -30,49 +30,35 @@ let searchQuery = "";
 let filterGenre = "";
 let filterVenue = "";
 
-/* ── Example feed reviews (remove later) ─────────── */
-const FEED_REVIEWS = [
+/* ── Example feed reviews (fallback when Firebase not configured) */
+const EXAMPLE_REVIEWS = [
   {
-    user: "Μαρία Κ.",
-    avatar: "ΜΚ",
-    playId: "i-diki",
-    rating: 5,
-    recommendation: "recommend",
+    id: "ex1", playId: "i-diki", userName: "Μαρία Κ.", userInitials: "ΜΚ",
+    rating: 5, recommendation: "recommend",
     review: "Ανατριχιαστική ερμηνεία! Ο Λαζόπουλος σε ρόλο που δεν τον έχεις ξαναδεί. Η σκηνοθεσία του Μαρκουλάκη κρατάει την ένταση σε όλη τη διάρκεια. Πρέπει να το δείτε.",
-    date: "2025-04-18",
-    likes: 12,
+    dateSeen: "2025-04-18", likes: 12, likedBy: [],
   },
   {
-    user: "Γιάννης Τ.",
-    avatar: "ΓΤ",
-    playId: "macbeth",
-    rating: 4,
-    recommendation: "recommend",
+    id: "ex2", playId: "macbeth", userName: "Γιάννης Τ.", userInitials: "ΓΤ",
+    rating: 4, recommendation: "recommend",
     review: "Πολύ δυνατή παραγωγή. Η μετάφραση λειτουργεί εξαιρετικά και οι ερμηνείες είναι σε πολύ υψηλό επίπεδο. Μόνο η διάρκεια κουράζει λίγο στο δεύτερο μέρος.",
-    date: "2025-04-10",
-    likes: 8,
+    dateSeen: "2025-04-10", likes: 8, likedBy: [],
   },
   {
-    user: "Ελένη Π.",
-    avatar: "ΕΠ",
-    playId: "antigoni",
-    rating: 3,
-    recommendation: "meh",
+    id: "ex3", playId: "antigoni", userName: "Ελένη Π.", userInitials: "ΕΠ",
+    rating: 3, recommendation: "meh",
     review: "Καλή προσπάθεια αλλά δεν με συγκίνησε ιδιαίτερα. Η σκηνογραφία ήταν εντυπωσιακή, ωστόσο η σκηνοθετική προσέγγιση δεν με έπεισε πλήρως.",
-    date: "2025-03-28",
-    likes: 4,
+    dateSeen: "2025-03-28", likes: 4, likedBy: [],
   },
   {
-    user: "Δημήτρης Α.",
-    avatar: "ΔΑ",
-    playId: "bussinokipos",
-    rating: 5,
-    recommendation: "recommend",
+    id: "ex4", playId: "bussinokipos", userName: "Δημήτρης Α.", userInitials: "ΔΑ",
+    rating: 5, recommendation: "recommend",
     review: "Τσέχοφ στα καλύτερά του. Σπάνια βλέπεις τόσο ομοιόμορφο σύνολο ηθοποιών στην ελληνική σκηνή. Η τελευταία πράξη σε αφήνει με κόμπο στο στομάχι.",
-    date: "2025-04-22",
-    likes: 15,
+    dateSeen: "2025-04-22", likes: 15, likedBy: [],
   },
 ];
+
+let cachedFeedReviews = null;
 
 /* ── Router ────────────────────────────────────────── */
 function getPage() {
@@ -332,25 +318,35 @@ function renderDetail(playId) {
 }
 
 /* ── Feed Tab (social timeline) ───────────────────── */
-function renderFeed() {
-  const cards = FEED_REVIEWS.map((r) => {
+function buildFeedHTML(reviews) {
+  const currentUser = getUser();
+
+  const cards = reviews.map((r) => {
     const play = PLAYS.find((p) => p.id === r.playId);
     if (!play) return "";
 
-    const stars = "★".repeat(r.rating) + "☆".repeat(5 - r.rating);
+    const rating = r.rating || 0;
+    const stars = "★".repeat(rating) + "☆".repeat(5 - rating);
     const recHtml = r.recommendation ? recBadge(r.recommendation) : "";
 
-    const dateObj = new Date(r.date);
-    const dateStr = dateObj.toLocaleDateString("el-GR", { day: "numeric", month: "short", year: "numeric" });
+    let dateStr = "";
+    if (r.dateSeen) {
+      const dateObj = new Date(r.dateSeen);
+      dateStr = dateObj.toLocaleDateString("el-GR", { day: "numeric", month: "short", year: "numeric" });
+    }
 
-    const needsClamp = r.review.length > 120;
+    const reviewText = r.review || "";
+    const needsClamp = reviewText.length > 120;
+    const likedBy = r.likedBy || [];
+    const isLiked = currentUser && likedBy.includes(currentUser);
+    const likeCount = r.likes || 0;
 
     return `
       <article class="feed-card fade-in">
         <div class="feed-header">
-          <div class="feed-avatar">${esc(r.avatar)}</div>
+          <div class="feed-avatar">${esc(r.userInitials || "??")}</div>
           <div class="feed-user-info">
-            <span class="feed-username">${esc(r.user)}</span>
+            <span class="feed-username">${esc(r.userName)}</span>
             <span class="feed-date">${esc(dateStr)}</span>
           </div>
         </div>
@@ -367,16 +363,17 @@ function renderFeed() {
               </div>
             </div>
           </div>
-          <p class="feed-review-text${needsClamp ? " clamped" : ""}">${esc(r.review)}</p>
+          ${reviewText ? `<p class="feed-review-text${needsClamp ? " clamped" : ""}">${esc(reviewText)}</p>` : ""}
           ${needsClamp ? '<button class="feed-read-more">Περισσότερα…</button>' : ""}
         </div>
         <div class="feed-footer">
-          <button class="feed-like-btn">♡ ${r.likes}</button>
+          <button class="feed-like-btn${isLiked ? " liked" : ""}" data-review-id="${esc(r.id)}">
+            ${isLiked ? "♥" : "♡"} <span class="like-count">${likeCount}</span>
+          </button>
         </div>
       </article>`;
   }).join("");
 
-  // Trending sidebar — top 5 plays by name
   const trending = PLAYS.slice(0, 5).map((p, i) =>
     `<div class="trending-item" data-id="${esc(p.id)}">
       <span class="trending-rank">${i + 1}</span>
@@ -385,10 +382,10 @@ function renderFeed() {
     </div>`
   ).join("");
 
-  // Stats sidebar
-  const totalPlays = PLAYS.length;
-  const totalReviews = FEED_REVIEWS.length;
-  const avgRating = (FEED_REVIEWS.reduce((s, r) => s + r.rating, 0) / totalReviews).toFixed(1);
+  const totalReviews = reviews.length;
+  const avgRating = totalReviews
+    ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / totalReviews).toFixed(1)
+    : "—";
 
   return `
     <div class="feed-layout">
@@ -398,16 +395,37 @@ function renderFeed() {
           ${trending}
         </div>
       </div>
-      <div class="feed-timeline">${cards}</div>
+      <div class="feed-timeline">
+        ${cards || '<div class="no-results">Κανένα review ακόμα. Γίνε ο πρώτος!</div>'}
+      </div>
       <div class="feed-sidebar">
         <div class="feed-sidebar-card">
           <h3>Στατιστικά</h3>
-          <div class="stat-row"><span class="stat-label">Παραστάσεις</span><span class="stat-value">${totalPlays}</span></div>
+          <div class="stat-row"><span class="stat-label">Παραστάσεις</span><span class="stat-value">${PLAYS.length}</span></div>
           <div class="stat-row"><span class="stat-label">Κριτικές</span><span class="stat-value">${totalReviews}</span></div>
           <div class="stat-row"><span class="stat-label">Μέση βαθμολογία</span><span class="stat-value">★ ${avgRating}</span></div>
         </div>
       </div>
     </div>`;
+}
+
+async function loadFeed() {
+  const root = document.getElementById("app");
+
+  if (firebaseReady) {
+    root.innerHTML = '<div class="feed-loading">Φόρτωση κριτικών…</div>';
+    try {
+      cachedFeedReviews = await dbGetFeedReviews();
+    } catch (e) {
+      console.error("Feed load error:", e);
+      cachedFeedReviews = EXAMPLE_REVIEWS;
+    }
+  } else {
+    cachedFeedReviews = EXAMPLE_REVIEWS;
+  }
+
+  root.innerHTML = buildFeedHTML(cachedFeedReviews);
+  attachEvents();
 }
 
 /* ── Placeholder tabs ─────────────────────────────── */
@@ -521,13 +539,21 @@ function openReviewModal(playId) {
     });
   });
 
-  overlay.querySelector("#modal-save").addEventListener("click", () => {
+  overlay.querySelector("#modal-save").addEventListener("click", async () => {
     const dateSeen = overlay.querySelector("#modal-date").value;
     const review = overlay.querySelector("#modal-review").value.trim();
     setPlayState(playId, {
       rating: tempRating, recommendation: tempRec, dateSeen, review,
       seen: tempRating > 0 || review || dateSeen ? true : getPlayState(playId).seen,
     });
+
+    if (firebaseReady && (tempRating > 0 || review)) {
+      await ensureUser();
+      dbSaveReview(playId, {
+        rating: tempRating, recommendation: tempRec, dateSeen, review,
+      });
+    }
+
     close();
     render();
   });
@@ -541,7 +567,8 @@ function render() {
   if (playId) {
     root.innerHTML = renderDetail(playId);
   } else if (currentTab === "feed") {
-    root.innerHTML = renderFeed();
+    loadFeed();
+    return;
   } else if (currentTab === "plays") {
     root.innerHTML = renderHome();
   } else if (currentTab === "friends") {
@@ -597,6 +624,34 @@ function attachEvents() {
       const expanded = !text.classList.contains("clamped");
       text.classList.toggle("clamped", expanded);
       btn.textContent = expanded ? "Περισσότερα…" : "Λιγότερα";
+    });
+  });
+
+  /* feed like buttons */
+  root.querySelectorAll(".feed-like-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const reviewId = btn.dataset.reviewId;
+      if (!reviewId) return;
+
+      if (firebaseReady) {
+        await ensureUser();
+        const nowLiked = await dbToggleLike(reviewId);
+        if (nowLiked !== null) {
+          const countEl = btn.querySelector(".like-count");
+          let count = parseInt(countEl.textContent) || 0;
+          count += nowLiked ? 1 : -1;
+          countEl.textContent = count;
+          btn.classList.toggle("liked", nowLiked);
+          btn.firstChild.textContent = nowLiked ? "♥ " : "♡ ";
+        }
+      } else {
+        const countEl = btn.querySelector(".like-count");
+        let count = parseInt(countEl.textContent) || 0;
+        const isLiked = btn.classList.toggle("liked");
+        count += isLiked ? 1 : -1;
+        countEl.textContent = count;
+        btn.firstChild.textContent = isLiked ? "♥ " : "♡ ";
+      }
     });
   });
 

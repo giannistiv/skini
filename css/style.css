@@ -424,6 +424,16 @@ img { display: block; max-width: 100%; }
   color: #ef4444;
   background: rgba(239,68,68,.08);
 }
+.feed-like-btn.liked {
+  color: #ef4444;
+}
+
+.feed-loading {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--muted);
+  font-size: .95rem;
+}
 
 /* ── Placeholder tabs ─────────────────────────────── */
 .tab-placeholder {
