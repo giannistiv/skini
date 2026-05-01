@@ -426,6 +426,7 @@ async function loadFeed() {
   }
 
   root.innerHTML = buildFeedHTML(cachedFeedReviews);
+  updateTabs();
   attachEvents();
 }
 
