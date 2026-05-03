@@ -297,6 +297,7 @@ function renderDetail(playId) {
 
     <div class="detail-hero">
       <div class="detail-backdrop" style="background-image:url('${esc(p.image)}')"></div>
+      <button class="fav-star-btn" data-fav-play="${esc(p.id)}" title="Αγαπημένη">★</button>
       <div class="detail-content fade-in">
         <div class="detail-poster">
           <img src="${esc(p.image)}" alt="${esc(p.titleGr)}"
@@ -321,7 +322,6 @@ function renderDetail(playId) {
               data-toggle="watch" data-play="${esc(p.id)}">
               ${ps.watchlist ? "★ Στη λίστα μου" : "☆ Πρόσθεσε στη λίστα"}
             </button>
-            <button class="fav-star-btn" data-fav-play="${esc(p.id)}" title="Αγαπημένη">★</button>
             ${p.moreUrl ? `<a class="btn btn-primary" href="${esc(p.moreUrl)}" target="_blank" rel="noopener">Εισιτήρια ↗</a>` : ""}
           </div>
         </div>
