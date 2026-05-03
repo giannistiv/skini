@@ -571,7 +571,7 @@ function buildTop4HTML(favorites) {
     const play = PLAYS.find((p) => p.id === playId);
     if (!play) return "";
     return `
-      <div class="top4-card" data-id="${esc(play.id)}">
+      <div class="top5-card" data-id="${esc(play.id)}">
         <img src="${esc(play.image)}" alt="${esc(play.titleGr)}"
              onerror="this.src='${esc(play.imageFallback || "")}'">
       </div>`;
@@ -580,7 +580,7 @@ function buildTop4HTML(favorites) {
   return `
     <div class="profile-section">
       <div class="section-title">Αγαπημένες παραστάσεις</div>
-      <div class="top4-grid">${cards}</div>
+      <div class="top5-grid">${cards}</div>
     </div>`;
 }
 

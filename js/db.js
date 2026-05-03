@@ -221,7 +221,7 @@ async function dbToggleFavorite(playId) {
     await ref.update({ favorites: firebase.firestore.FieldValue.arrayRemove(playId) });
     return false;
   } else {
-    if (favorites.length >= 4) throw new Error("Μέχρι 4 αγαπημένες παραστάσεις");
+    if (favorites.length >= 5) throw new Error("Μέχρι 5 αγαπημένες παραστάσεις");
     await ref.update({ favorites: firebase.firestore.FieldValue.arrayUnion(playId) });
     return true;
   }
