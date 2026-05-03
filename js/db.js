@@ -210,6 +210,39 @@ async function dbToggleLike(reviewId) {
   return !alreadyLiked;
 }
 
+async function dbToggleFavorite(playId) {
+  if (!firebaseReady || !isLoggedIn()) return null;
+  const uid = getUserUid();
+  const ref = db.collection("users").doc(uid);
+  const doc = await ref.get();
+  const favorites = doc.exists ? (doc.data().favorites || []) : [];
+
+  if (favorites.includes(playId)) {
+    await ref.update({ favorites: firebase.firestore.FieldValue.arrayRemove(playId) });
+    return false;
+  } else {
+    if (favorites.length >= 4) throw new Error("Μέχρι 4 αγαπημένες παραστάσεις");
+    await ref.update({ favorites: firebase.firestore.FieldValue.arrayUnion(playId) });
+    return true;
+  }
+}
+
+async function dbToggleWatchlist(playId) {
+  if (!firebaseReady || !isLoggedIn()) return;
+  const uid = getUserUid();
+  const ref = db.collection("users").doc(uid);
+  const doc = await ref.get();
+  const watchlist = doc.exists ? (doc.data().watchlist || []) : [];
+
+  if (watchlist.includes(playId)) {
+    await ref.update({ watchlist: firebase.firestore.FieldValue.arrayRemove(playId) });
+    return false;
+  } else {
+    await ref.update({ watchlist: firebase.firestore.FieldValue.arrayUnion(playId) });
+    return true;
+  }
+}
+
 async function dbGetUserProfile(uid) {
   if (!firebaseReady) return null;
   const userDoc = await db.collection("users").doc(uid).get();

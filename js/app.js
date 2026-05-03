@@ -254,6 +254,19 @@ function renderRatingStrip(play, ps) {
 }
 
 /* ── Detail Page ───────────────────────────────────── */
+let userFavoritesCache = [];
+
+async function loadUserFavorites() {
+  if (!firebaseReady || !isLoggedIn()) { userFavoritesCache = []; return; }
+  try {
+    const doc = await db.collection("users").doc(getUserUid()).get();
+    userFavoritesCache = doc.exists ? (doc.data().favorites || []) : [];
+  } catch (e) { userFavoritesCache = []; }
+  document.querySelectorAll(".fav-star-btn").forEach((btn) => {
+    btn.classList.toggle("active", userFavoritesCache.includes(btn.dataset.favPlay));
+  });
+}
+
 function renderDetail(playId) {
   const p = PLAYS.find((x) => x.id === playId);
   if (!p) { navigate(null); return ""; }
@@ -308,6 +321,7 @@ function renderDetail(playId) {
               data-toggle="watch" data-play="${esc(p.id)}">
               ${ps.watchlist ? "★ Στη λίστα μου" : "☆ Πρόσθεσε στη λίστα"}
             </button>
+            <button class="fav-star-btn" data-fav-play="${esc(p.id)}" title="Αγαπημένη">★</button>
             ${p.moreUrl ? `<a class="btn btn-primary" href="${esc(p.moreUrl)}" target="_blank" rel="noopener">Εισιτήρια ↗</a>` : ""}
           </div>
         </div>
@@ -546,16 +560,15 @@ const MONTH_NAMES = [
   "Ιούλιος","Αύγουστος","Σεπτέμβριος","Οκτώβριος","Νοέμβριος","Δεκέμβριος"
 ];
 const DAY_LABELS = ["Δε","Τρ","Τε","Πε","Πα","Σα","Κυ"];
+let calViewMonth = new Date().getMonth();
+let calViewYear = new Date().getFullYear();
+let calReviewsCache = [];
 
-function buildTop4HTML(reviews) {
-  const top = reviews
-    .filter((r) => r.rating >= 4)
-    .sort((a, b) => b.rating - a.rating || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-    .slice(0, 4);
-  if (!top.length) return "";
+function buildTop4HTML(favorites) {
+  if (!favorites || !favorites.length) return "";
 
-  const cards = top.map((r) => {
-    const play = PLAYS.find((p) => p.id === r.playId);
+  const cards = favorites.map((playId) => {
+    const play = PLAYS.find((p) => p.id === playId);
     if (!play) return "";
     return `
       <div class="top4-card" data-id="${esc(play.id)}">
@@ -571,57 +584,97 @@ function buildTop4HTML(reviews) {
     </div>`;
 }
 
-function buildCalendarHTML(reviews) {
-  const dateMap = {};
-  reviews.forEach((r) => {
-    if (r.dateSeen) dateMap[r.dateSeen] = r;
-  });
+function buildWatchlistHTML(watchlist) {
+  if (!watchlist || !watchlist.length) return "";
 
-  const years = new Set();
-  reviews.forEach((r) => {
-    if (r.dateSeen) years.add(parseInt(r.dateSeen.split("-")[0]));
-  });
-  if (!years.size) years.add(new Date().getFullYear());
-  const sortedYears = [...years].sort((a, b) => b - a);
+  const cards = watchlist.map((playId) => {
+    const play = PLAYS.find((p) => p.id === playId);
+    if (!play) return "";
+    return `
+      <div class="watchlist-card" data-id="${esc(play.id)}">
+        <img src="${esc(play.image)}" alt="${esc(play.titleGr)}"
+             onerror="this.src='${esc(play.imageFallback || "")}'">
+      </div>`;
+  }).join("");
 
-  let html = "";
-  sortedYears.forEach((year) => {
-    html += `<div class="cal-year-label">${year}</div><div class="cal-year">`;
-    for (let m = 0; m < 12; m++) {
-      const daysInMonth = new Date(year, m + 1, 0).getDate();
-      let startDay = (new Date(year, m, 1).getDay() + 6) % 7;
+  return `
+    <div class="profile-section">
+      <div class="section-title">Θέλω να δω</div>
+      <div class="watchlist-grid">${cards}</div>
+    </div>`;
+}
 
-      html += `<div class="cal-month"><div class="cal-month-name">${MONTH_NAMES[m].slice(0, 3)}</div><div class="cal-grid">`;
-      DAY_LABELS.forEach((d) => (html += `<div class="cal-day-label">${d}</div>`));
+function buildSingleMonthHTML(year, month, dateMap) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let startDay = (new Date(year, month, 1).getDay() + 6) % 7;
 
-      for (let i = 0; i < startDay; i++) html += `<div class="cal-day empty"></div>`;
+  let cells = "";
+  DAY_LABELS.forEach((d) => (cells += `<div class="cal-day-label">${d}</div>`));
+  for (let i = 0; i < startDay; i++) cells += `<div class="cal-day empty"></div>`;
 
-      for (let d = 1; d <= daysInMonth; d++) {
-        const ds = `${year}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        const review = dateMap[ds];
-
-        if (review) {
-          const play = PLAYS.find((p) => p.id === review.playId);
-          if (play) {
-            html += `
-              <div class="cal-day has-play" data-id="${esc(play.id)}" title="${esc(play.titleGr)}">
-                <img src="${esc(play.image)}" alt="" class="cal-thumb"
-                     onerror="this.src='${esc(play.imageFallback || "")}'">
-                <span class="cal-rating">${"★".repeat(review.rating || 0)}</span>
-              </div>`;
-          } else {
-            html += `<div class="cal-day"><span class="cal-num">${d}</span></div>`;
-          }
-        } else {
-          html += `<div class="cal-day"><span class="cal-num">${d}</span></div>`;
-        }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const review = dateMap[ds];
+    if (review) {
+      const play = PLAYS.find((p) => p.id === review.playId);
+      if (play) {
+        cells += `
+          <div class="cal-day has-play" data-id="${esc(play.id)}" title="${esc(play.titleGr)}">
+            <img src="${esc(play.image)}" alt="" class="cal-thumb"
+                 onerror="this.src='${esc(play.imageFallback || "")}'">
+            <span class="cal-rating">${"★".repeat(review.rating || 0)}</span>
+          </div>`;
+      } else {
+        cells += `<div class="cal-day"><span class="cal-num">${d}</span></div>`;
       }
-      html += `</div></div>`;
+    } else {
+      cells += `<div class="cal-day"><span class="cal-num">${d}</span></div>`;
     }
-    html += `</div>`;
-  });
+  }
 
-  return html;
+  return `
+    <div class="cal-nav">
+      <button class="cal-arrow" id="cal-prev">‹</button>
+      <span class="cal-nav-label">${MONTH_NAMES[month]} ${year}</span>
+      <button class="cal-arrow" id="cal-next">›</button>
+    </div>
+    <div class="cal-month">
+      <div class="cal-grid">${cells}</div>
+    </div>`;
+}
+
+function buildCalendarHTML(reviews) {
+  calReviewsCache = reviews;
+  const dateMap = {};
+  reviews.forEach((r) => { if (r.dateSeen) dateMap[r.dateSeen] = r; });
+  return `<div id="cal-container">${buildSingleMonthHTML(calViewYear, calViewMonth, dateMap)}</div>`;
+}
+
+function rerenderCalendar() {
+  const container = document.getElementById("cal-container");
+  if (!container) return;
+  const dateMap = {};
+  calReviewsCache.forEach((r) => { if (r.dateSeen) dateMap[r.dateSeen] = r; });
+  container.innerHTML = buildSingleMonthHTML(calViewYear, calViewMonth, dateMap);
+  attachCalendarEvents();
+}
+
+function attachCalendarEvents() {
+  const prev = document.getElementById("cal-prev");
+  const next = document.getElementById("cal-next");
+  if (prev) prev.addEventListener("click", () => {
+    calViewMonth--;
+    if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
+    rerenderCalendar();
+  });
+  if (next) next.addEventListener("click", () => {
+    calViewMonth++;
+    if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
+    rerenderCalendar();
+  });
+  document.querySelectorAll("#cal-container .cal-day.has-play").forEach((el) => {
+    el.addEventListener("click", () => navigate(el.dataset.id));
+  });
 }
 
 async function loadPublicProfile(uid) {
@@ -685,12 +738,14 @@ async function loadPublicProfile(uid) {
           </div>
         </div>
 
-        ${buildTop4HTML(reviews)}
+        ${buildTop4HTML(user.favorites)}
 
         <div class="profile-section">
           <div class="section-title">Ημερολόγιο</div>
           ${buildCalendarHTML(reviews)}
         </div>
+
+        ${buildWatchlistHTML(user.watchlist)}
 
         ${reviewCards ? `
         <div class="profile-section">
@@ -714,6 +769,7 @@ async function loadPublicProfile(uid) {
     root.querySelectorAll("[data-id]").forEach((el) => {
       el.addEventListener("click", () => navigate(el.dataset.id));
     });
+    attachCalendarEvents();
     updateTabs();
   } catch (e) {
     console.error("Profile load error:", e);
@@ -761,8 +817,11 @@ function openReviewModal(playId) {
         </div>
       </div>
       <div class="modal-section">
-        <label class="modal-label" for="modal-date">Ημερομηνία που είδα</label>
-        <input type="date" id="modal-date" class="modal-input" value="${esc(ps.dateSeen || today)}" max="${today}">
+        <label class="modal-label">Ημερομηνία που είδα</label>
+        <div class="datepicker-wrap" id="datepicker-wrap">
+          <button type="button" class="datepicker-display" id="datepicker-display">${ps.dateSeen || today}</button>
+          <input type="hidden" id="modal-date" value="${esc(ps.dateSeen || today)}">
+        </div>
       </div>
       <div class="modal-section">
         <label class="modal-label" for="modal-review">Κριτική</label>
@@ -784,6 +843,93 @@ function openReviewModal(playId) {
     overlay.classList.remove("open");
     setTimeout(() => overlay.remove(), 200);
   }
+
+  // Date picker
+  (function initDatePicker() {
+    const wrap = overlay.querySelector("#datepicker-wrap");
+    const display = overlay.querySelector("#datepicker-display");
+    const hiddenInput = overlay.querySelector("#modal-date");
+    let pickerOpen = false;
+    let dpMonth, dpYear;
+
+    const selected = hiddenInput.value || today;
+    const parts = selected.split("-");
+    dpYear = parseInt(parts[0]);
+    dpMonth = parseInt(parts[1]) - 1;
+
+    function renderPicker() {
+      let popup = wrap.querySelector(".datepicker-popup");
+      if (!popup) {
+        popup = document.createElement("div");
+        popup.className = "datepicker-popup";
+        wrap.appendChild(popup);
+      }
+
+      const daysInMonth = new Date(dpYear, dpMonth + 1, 0).getDate();
+      let startDay = (new Date(dpYear, dpMonth, 1).getDay() + 6) % 7;
+      let cells = "";
+      DAY_LABELS.forEach((d) => (cells += `<div class="cal-day-label">${d}</div>`));
+      for (let i = 0; i < startDay; i++) cells += `<div class="cal-day empty"></div>`;
+
+      const todayParts = today.split("-");
+      const todayStr = today;
+      const selectedVal = hiddenInput.value;
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const ds = `${dpYear}-${String(dpMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const isFuture = ds > todayStr;
+        const isSelected = ds === selectedVal;
+        const cls = `cal-day${isSelected ? " selected" : ""}${isFuture ? " empty" : ""}`;
+        cells += `<div class="${cls}" data-date="${ds}"><span class="cal-num">${d}</span></div>`;
+      }
+
+      popup.innerHTML = `
+        <div class="cal-nav">
+          <button type="button" class="cal-arrow dp-prev">‹</button>
+          <span class="cal-nav-label">${MONTH_NAMES[dpMonth]} ${dpYear}</span>
+          <button type="button" class="cal-arrow dp-next">›</button>
+        </div>
+        <div class="cal-grid">${cells}</div>`;
+
+      popup.querySelector(".dp-prev").addEventListener("click", (e) => {
+        e.stopPropagation();
+        dpMonth--;
+        if (dpMonth < 0) { dpMonth = 11; dpYear--; }
+        renderPicker();
+      });
+      popup.querySelector(".dp-next").addEventListener("click", (e) => {
+        e.stopPropagation();
+        dpMonth++;
+        if (dpMonth > 11) { dpMonth = 0; dpYear++; }
+        renderPicker();
+      });
+      popup.querySelectorAll(".cal-day:not(.empty)").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const val = el.dataset.date;
+          if (!val) return;
+          hiddenInput.value = val;
+          display.textContent = val;
+          closePicker();
+        });
+      });
+    }
+
+    function closePicker() {
+      const popup = wrap.querySelector(".datepicker-popup");
+      if (popup) popup.remove();
+      pickerOpen = false;
+    }
+
+    display.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (pickerOpen) { closePicker(); } else { pickerOpen = true; renderPicker(); }
+    });
+
+    overlay.addEventListener("click", (e) => {
+      if (pickerOpen && !wrap.contains(e.target)) closePicker();
+    });
+  })();
 
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
   overlay.querySelector("#modal-close").addEventListener("click", close);
@@ -867,6 +1013,7 @@ function render() {
     return;
   } else if (playId) {
     root.innerHTML = renderDetail(playId);
+    loadUserFavorites();
   } else if (currentTab === "feed") {
     loadFeed();
     return;
@@ -1034,14 +1181,34 @@ function attachEvents() {
 
   /* seen / watchlist toggles */
   root.querySelectorAll("[data-toggle]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", async (e) => {
       e.stopPropagation();
       const playId = btn.dataset.play;
       const type = btn.dataset.toggle;
       const ps = getPlayState(playId);
       if (type === "seen") setPlayState(playId, { seen: !ps.seen });
-      if (type === "watch") setPlayState(playId, { watchlist: !ps.watchlist });
+      if (type === "watch") {
+        setPlayState(playId, { watchlist: !ps.watchlist });
+        if (firebaseReady && isLoggedIn()) {
+          try { await dbToggleWatchlist(playId); } catch(e) { console.error(e); }
+        }
+      }
       render();
+    });
+  });
+
+  /* favorite star toggle */
+  root.querySelectorAll(".fav-star-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!isLoggedIn()) { showAuthModal("login"); return; }
+      const playId = btn.dataset.favPlay;
+      try {
+        const isFav = await dbToggleFavorite(playId);
+        btn.classList.toggle("active", isFav);
+      } catch (err) {
+        alert(err.message);
+      }
     });
   });
 
