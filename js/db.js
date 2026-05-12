@@ -253,3 +253,24 @@ async function dbGetUserProfile(uid) {
   };
 }
 
+/* ── One-time cleanup: delete seeded bot reviews ──── */
+async function dbPurgeBotReviews() {
+  if (!firebaseReady) return;
+  if (localStorage.getItem("aulaia_purged")) return;
+  try {
+    const snap = await db.collection("reviews").get();
+    const botDocs = snap.docs.filter((d) => !d.data().uid);
+    if (botDocs.length === 0) {
+      localStorage.setItem("aulaia_purged", "1");
+      return;
+    }
+    const batch = db.batch();
+    botDocs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    console.log("Purged " + botDocs.length + " bot reviews");
+    localStorage.setItem("aulaia_purged", "1");
+  } catch (e) {
+    console.error("Purge bot reviews error:", e);
+  }
+}
+
