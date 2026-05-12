@@ -253,33 +253,3 @@ async function dbGetUserProfile(uid) {
   };
 }
 
-async function dbSeedExamples(examples) {
-  if (!firebaseReady) return;
-  if (localStorage.getItem("aulaia_seeded")) return;
-  const snap = await db.collection("reviews").limit(1).get();
-  if (!snap.empty) {
-    localStorage.setItem("aulaia_seeded", "1");
-    return;
-  }
-
-  const batch = db.batch();
-  examples.forEach((r) => {
-    const ref = db.collection("reviews").doc();
-    batch.set(ref, {
-      playId: r.playId,
-      uid: "system",
-      userName: r.userName,
-      userInitials: r.userInitials,
-      rating: r.rating,
-      recommendation: r.recommendation,
-      review: r.review,
-      dateSeen: r.dateSeen,
-      likedBy: [],
-      likes: 0,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-  });
-  await batch.commit();
-  localStorage.setItem("aulaia_seeded", "1");
-}

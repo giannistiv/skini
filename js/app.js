@@ -30,34 +30,6 @@ let searchQuery = "";
 let filterGenre = "";
 let filterVenue = "";
 
-/* ── Example feed reviews (fallback when Firebase not configured) */
-const EXAMPLE_REVIEWS = [
-  {
-    id: "ex1", playId: "i-diki", userName: "Μαρία Κ.", userInitials: "ΜΚ",
-    rating: 5, recommendation: "recommend",
-    review: "Ανατριχιαστική ερμηνεία! Ο Λαζόπουλος σε ρόλο που δεν τον έχεις ξαναδεί. Η σκηνοθεσία του Μαρκουλάκη κρατάει την ένταση σε όλη τη διάρκεια. Πρέπει να το δείτε.",
-    dateSeen: "2025-04-18", likes: 12, likedBy: [],
-  },
-  {
-    id: "ex2", playId: "macbeth", userName: "Γιάννης Τ.", userInitials: "ΓΤ",
-    rating: 4, recommendation: "recommend",
-    review: "Πολύ δυνατή παραγωγή. Η μετάφραση λειτουργεί εξαιρετικά και οι ερμηνείες είναι σε πολύ υψηλό επίπεδο. Μόνο η διάρκεια κουράζει λίγο στο δεύτερο μέρος.",
-    dateSeen: "2025-04-10", likes: 8, likedBy: [],
-  },
-  {
-    id: "ex3", playId: "antigoni", userName: "Ελένη Π.", userInitials: "ΕΠ",
-    rating: 3, recommendation: "meh",
-    review: "Καλή προσπάθεια αλλά δεν με συγκίνησε ιδιαίτερα. Η σκηνογραφία ήταν εντυπωσιακή, ωστόσο η σκηνοθετική προσέγγιση δεν με έπεισε πλήρως.",
-    dateSeen: "2025-03-28", likes: 4, likedBy: [],
-  },
-  {
-    id: "ex4", playId: "bussinokipos", userName: "Δημήτρης Α.", userInitials: "ΔΑ",
-    rating: 5, recommendation: "recommend",
-    review: "Τσέχοφ στα καλύτερά του. Σπάνια βλέπεις τόσο ομοιόμορφο σύνολο ηθοποιών στην ελληνική σκηνή. Η τελευταία πράξη σε αφήνει με κόμπο στο στομάχι.",
-    dateSeen: "2025-04-22", likes: 15, likedBy: [],
-  },
-];
-
 let cachedFeedReviews = null;
 
 /* ── Router ────────────────────────────────────────── */
@@ -442,14 +414,13 @@ async function loadFeed() {
   if (firebaseReady) {
     root.innerHTML = '<div class="feed-loading">Φόρτωση κριτικών…</div>';
     try {
-      await dbSeedExamples(EXAMPLE_REVIEWS);
       cachedFeedReviews = await dbGetFeedReviews();
     } catch (e) {
       console.error("Feed load error:", e);
-      cachedFeedReviews = EXAMPLE_REVIEWS;
+      cachedFeedReviews = [];
     }
   } else {
-    cachedFeedReviews = EXAMPLE_REVIEWS;
+    cachedFeedReviews = [];
   }
 
   root.innerHTML = buildFeedHTML(cachedFeedReviews);
