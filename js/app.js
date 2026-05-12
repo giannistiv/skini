@@ -326,10 +326,18 @@ function buildFeedHTML(reviews) {
     const stars = "★".repeat(rating) + "☆".repeat(5 - rating);
     const recHtml = r.recommendation ? recBadge(r.recommendation) : "";
 
-    let dateStr = "";
+    /* publication date from Firestore timestamp */
+    let postedStr = "";
+    if (r.createdAt) {
+      const ts = r.createdAt.seconds ? new Date(r.createdAt.seconds * 1000) : new Date(r.createdAt);
+      postedStr = ts.toLocaleDateString("el-GR", { day: "numeric", month: "short", year: "numeric" });
+    }
+
+    /* date the user saw the play */
+    let seenStr = "";
     if (r.dateSeen) {
-      const dateObj = new Date(r.dateSeen);
-      dateStr = dateObj.toLocaleDateString("el-GR", { day: "numeric", month: "short", year: "numeric" });
+      const ds = new Date(r.dateSeen);
+      seenStr = ds.toLocaleDateString("el-GR", { day: "numeric", month: "short", year: "numeric" });
     }
 
     const reviewText = r.review || "";
@@ -345,7 +353,7 @@ function buildFeedHTML(reviews) {
             <div class="feed-avatar">${esc(r.userInitials || "??")}</div>
             <div class="feed-user-info">
               <span class="feed-username">${esc(r.userName)}</span>
-              <span class="feed-date">${esc(dateStr)}</span>
+              <span class="feed-date">${esc(postedStr)}</span>
             </div>
           </div>
         </div>
@@ -360,6 +368,7 @@ function buildFeedHTML(reviews) {
                 <span class="feed-stars">${stars}</span>
                 ${recHtml}
               </div>
+              ${seenStr ? `<div class="feed-date-seen">🎭 Είδε: ${esc(seenStr)}</div>` : ""}
             </div>
           </div>
           ${reviewText ? `<p class="feed-review-text${needsClamp ? " clamped" : ""}">${esc(reviewText)}</p>` : ""}

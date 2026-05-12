@@ -421,6 +421,11 @@ img { display: block; max-width: 100%; }
 .feed-date {
   font-size: .75rem; color: var(--muted);
 }
+.feed-date-seen {
+  font-size: .75rem;
+  color: var(--accent2);
+  margin-top: .3rem;
+}
 
 .feed-body { margin-bottom: .75rem; }
 
