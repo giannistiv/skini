@@ -398,6 +398,16 @@ function buildFeedHTML(reviews) {
           <button class="feed-like-btn${isLiked ? " liked" : ""}" data-review-id="${esc(r.id)}">
             ${isLiked ? "♥" : "♡"} <span class="like-count">${likeCount}</span>
           </button>
+          <button class="feed-comment-toggle" data-review-id="${esc(r.id)}">
+            💬 <span class="comment-count" data-review-id="${esc(r.id)}"></span>
+          </button>
+        </div>
+        <div class="feed-comments" id="comments-${esc(r.id)}" data-review-id="${esc(r.id)}" style="display:none;">
+          <div class="comments-list"></div>
+          <div class="comment-input-row">
+            <input type="text" class="comment-input" placeholder="Γράψε σχόλιο…" maxlength="300">
+            <button class="comment-send-btn" title="Αποστολή">➤</button>
+          </div>
         </div>
       </article>`;
   }).join("");
@@ -456,6 +466,19 @@ async function loadFeed() {
   root.innerHTML = buildFeedHTML(cachedFeedReviews);
   updateTabs();
   attachEvents();
+
+  /* load comment counts in background */
+  if (firebaseReady && cachedFeedReviews.length) {
+    cachedFeedReviews.forEach(async (r) => {
+      try {
+        const snap = await db.collection("reviews").doc(r.id).collection("comments").get();
+        const count = snap.size;
+        document.querySelectorAll(`.comment-count[data-review-id="${r.id}"]`).forEach((el) => {
+          el.textContent = count || "";
+        });
+      } catch (_) {}
+    });
+  }
 }
 
 /* ── Profile Page ─────────────────────────────────── */
@@ -1050,6 +1073,59 @@ function updateTabs() {
 }
 
 /* ── Events ────────────────────────────────────────── */
+async function loadComments(reviewId) {
+  const section = document.getElementById("comments-" + reviewId);
+  if (!section) return;
+  const list = section.querySelector(".comments-list");
+  const uid = getUserUid();
+
+  try {
+    const comments = await dbGetComments(reviewId);
+    /* update count badge */
+    document.querySelectorAll(`.comment-count[data-review-id="${reviewId}"]`).forEach((el) => {
+      el.textContent = comments.length || "";
+    });
+
+    if (comments.length === 0) {
+      list.innerHTML = '<div class="no-comments">Κανένα σχόλιο ακόμα</div>';
+      return;
+    }
+
+    list.innerHTML = comments.map((c) => {
+      const ts = c.createdAt
+        ? new Date((c.createdAt.seconds || 0) * 1000).toLocaleDateString("el-GR", { day: "numeric", month: "short" })
+        : "";
+      const isOwn = uid && c.uid === uid;
+      return `
+        <div class="comment-item">
+          <div class="comment-header">
+            <span class="comment-avatar">${esc(c.userInitials || "??")}</span>
+            <span class="comment-author feed-user-link" data-user-uid="${esc(c.uid || "")}">${esc(c.userName)}</span>
+            <span class="comment-time">${esc(ts)}</span>
+            ${isOwn ? `<button class="comment-delete" data-review-id="${esc(reviewId)}" data-comment-id="${esc(c.id)}" title="Διαγραφή">×</button>` : ""}
+          </div>
+          <div class="comment-text">${esc(c.text)}</div>
+        </div>`;
+    }).join("");
+
+    /* delete buttons */
+    list.querySelectorAll(".comment-delete").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await dbDeleteComment(btn.dataset.reviewId, btn.dataset.commentId);
+        await loadComments(btn.dataset.reviewId);
+      });
+    });
+
+    /* user links in comments */
+    list.querySelectorAll(".feed-user-link").forEach((el) => {
+      el.addEventListener("click", () => navigateToUser(el.dataset.userUid));
+    });
+  } catch (e) {
+    console.error("Load comments error:", e);
+    list.innerHTML = '<div class="no-comments">Σφάλμα φόρτωσης</div>';
+  }
+}
+
 function attachEvents() {
   const root = document.getElementById("app");
 
@@ -1122,6 +1198,47 @@ function attachEvents() {
           btn.firstChild.textContent = nowLiked ? "♥ " : "♡ ";
         }
       }
+    });
+  });
+
+  /* feed comment toggles */
+  root.querySelectorAll(".feed-comment-toggle").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const reviewId = btn.dataset.reviewId;
+      const section = document.getElementById("comments-" + reviewId);
+      if (!section) return;
+      const isOpen = section.style.display !== "none";
+      section.style.display = isOpen ? "none" : "block";
+      if (!isOpen && !section.dataset.loaded) {
+        section.dataset.loaded = "1";
+        await loadComments(reviewId);
+      }
+    });
+  });
+
+  /* comment send buttons & enter key */
+  root.querySelectorAll(".feed-comments").forEach((section) => {
+    const reviewId = section.dataset.reviewId;
+    const input = section.querySelector(".comment-input");
+    const sendBtn = section.querySelector(".comment-send-btn");
+
+    async function postComment() {
+      const text = input.value.trim();
+      if (!text) return;
+      if (!isLoggedIn()) { showAuthModal("login"); return; }
+      input.disabled = true;
+      sendBtn.disabled = true;
+      await dbAddComment(reviewId, text);
+      input.value = "";
+      input.disabled = false;
+      sendBtn.disabled = false;
+      await loadComments(reviewId);
+      input.focus();
+    }
+
+    sendBtn.addEventListener("click", postComment);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); postComment(); }
     });
   });
 

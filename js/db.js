@@ -253,6 +253,40 @@ async function dbGetUserProfile(uid) {
   };
 }
 
+/* ── Firestore: Comments ───────────────────────────── */
+async function dbAddComment(reviewId, text) {
+  if (!firebaseReady || !isLoggedIn()) return null;
+  const ref = await db
+    .collection("reviews").doc(reviewId)
+    .collection("comments")
+    .add({
+      uid: getUserUid(),
+      userName: getUser(),
+      userInitials: getUserInitials(),
+      text: text,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  return ref.id;
+}
+
+async function dbGetComments(reviewId) {
+  if (!firebaseReady) return [];
+  const snap = await db
+    .collection("reviews").doc(reviewId)
+    .collection("comments")
+    .orderBy("createdAt", "asc")
+    .get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+async function dbDeleteComment(reviewId, commentId) {
+  if (!firebaseReady || !isLoggedIn()) return;
+  await db
+    .collection("reviews").doc(reviewId)
+    .collection("comments").doc(commentId)
+    .delete();
+}
+
 /* ── One-time cleanup: delete seeded bot reviews ──── */
 async function dbPurgeBotReviews() {
   if (!firebaseReady) return;
