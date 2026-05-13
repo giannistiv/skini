@@ -70,7 +70,25 @@ function esc(str) {
     .replace(/"/g, "&quot;");
 }
 
-const RATING_LABELS = ["", "Απαίσιο", "Μέτριο", "Καλό", "Πολύ καλό", "Εξαιρετικό"];
+const RATING_LABELS = {
+  0.5: "Τραγικό", 1: "Απαίσιο", 1.5: "Κακό", 2: "Μέτριο",
+  2.5: "Μέτριο+", 3: "Καλό", 3.5: "Αρκετά καλό",
+  4: "Πολύ καλό", 4.5: "Σχεδόν τέλειο", 5: "Εξαιρετικό",
+};
+
+function renderStarsHTML(rating) {
+  let html = "";
+  for (let i = 1; i <= 5; i++) {
+    if (rating >= i) {
+      html += '<span class="star full">★</span>';
+    } else if (rating >= i - 0.5) {
+      html += '<span class="star half">★</span>';
+    } else {
+      html += '<span class="star empty">☆</span>';
+    }
+  }
+  return html;
+}
 
 const REC_LABELS = {
   recommend: "Το συνιστώ",
@@ -202,13 +220,13 @@ function renderRatingStrip(play, ps) {
   const stars = [1, 2, 3, 4, 5]
     .map(
       (n) =>
-        `<button class="strip-star ${n <= ps.rating ? "filled" : ""}"
+        `<button class="strip-star ${n <= ps.rating ? "filled" : (ps.rating >= n - 0.5 ? "half-filled" : "")}"
           data-n="${n}" data-play="${esc(play.id)}"
-          aria-label="${n} αστέρια">${n <= ps.rating ? "★" : "☆"}</button>`
+          aria-label="${n} αστέρια">${n <= ps.rating ? "★" : (ps.rating >= n - 0.5 ? "★" : "☆")}</button>`
     )
     .join("");
 
-  const label = ps.rating ? RATING_LABELS[ps.rating] : "Πάτησε για βαθμολογία & κριτική";
+  const label = ps.rating ? (RATING_LABELS[ps.rating] || "") : "Πάτησε για βαθμολογία & κριτική";
   const recHtml = ps.recommendation ? recBadge(ps.recommendation) : "";
   const dateHtml = ps.dateSeen
     ? `<span class="strip-date">Είδα: ${esc(ps.dateSeen)}</span>` : "";
@@ -323,8 +341,9 @@ function buildFeedHTML(reviews) {
     if (!play) return "";
 
     const rating = r.rating || 0;
-    const stars = "★".repeat(rating) + "☆".repeat(5 - rating);
+    const starsHtml = renderStarsHTML(rating);
     const recHtml = r.recommendation ? recBadge(r.recommendation) : "";
+    const isOwn = uid && r.uid === uid;
 
     /* publication date from Firestore timestamp */
     let postedStr = "";
@@ -347,7 +366,7 @@ function buildFeedHTML(reviews) {
     const likeCount = r.likes || 0;
 
     return `
-      <article class="feed-card fade-in">
+      <article class="feed-card fade-in${isOwn ? " own-review" : ""}">
         <div class="feed-header">
           <div class="feed-user-link" data-user-uid="${esc(r.uid || "")}">
             <div class="feed-avatar">${esc(r.userInitials || "??")}</div>
@@ -356,6 +375,7 @@ function buildFeedHTML(reviews) {
               <span class="feed-date">${esc(postedStr)}</span>
             </div>
           </div>
+          ${isOwn ? `<button class="feed-edit-btn" data-play-id="${esc(play.id)}" title="Επεξεργασία">✎</button>` : ""}
         </div>
         <div class="feed-body">
           <div class="feed-play" data-id="${esc(play.id)}">
@@ -365,7 +385,7 @@ function buildFeedHTML(reviews) {
               <div class="feed-play-title">${esc(play.titleGr)}</div>
               <div class="feed-play-meta">${play.director ? esc(play.director) : ""} ${play.venue ? "· " + esc(play.venue) : ""}</div>
               <div class="feed-rating">
-                <span class="feed-stars">${stars}</span>
+                <span class="feed-stars">${starsHtml}</span>
                 ${recHtml}
               </div>
               ${seenStr ? `<div class="feed-date-seen">🎭 Είδε: ${esc(seenStr)}</div>` : ""}
@@ -511,7 +531,7 @@ async function loadProfileReviews() {
       const play = PLAYS.find((p) => p.id === r.playId);
       if (!play) return "";
       const rating = r.rating || 0;
-      const stars = "★".repeat(rating) + "☆".repeat(5 - rating);
+      const stars = renderStarsHTML(rating);
       const recHtml = r.recommendation ? recBadge(r.recommendation) : "";
       const reviewText = r.review || "";
 
@@ -603,7 +623,7 @@ function buildSingleMonthHTML(year, month, dateMap) {
           <div class="cal-day has-play" data-id="${esc(play.id)}" title="${esc(play.titleGr)}">
             <img src="${esc(play.image)}" alt="" class="cal-thumb"
                  onerror="this.src='${esc(play.imageFallback || "")}'">
-            <span class="cal-rating">${"★".repeat(review.rating || 0)}</span>
+            <span class="cal-rating">${renderStarsHTML(review.rating || 0)}</span>
           </div>`;
       } else {
         cells += `<div class="cal-day"><span class="cal-num">${d}</span></div>`;
@@ -689,7 +709,7 @@ async function loadPublicProfile(uid) {
       .map((r) => {
         const play = PLAYS.find((p) => p.id === r.playId);
         if (!play) return "";
-        const stars = "★".repeat(r.rating || 0) + "☆".repeat(5 - (r.rating || 0));
+        const stars = renderStarsHTML(r.rating || 0);
         const recHtml = r.recommendation ? recBadge(r.recommendation) : "";
         return `
           <div class="profile-review-card" data-id="${esc(play.id)}">
@@ -769,10 +789,12 @@ function openReviewModal(playId) {
   if (!p) return;
   const ps = getPlayState(playId);
 
-  const stars = [1, 2, 3, 4, 5]
-    .map((n) =>
-      `<button class="modal-star ${n <= ps.rating ? "filled" : ""}"
-        data-n="${n}" aria-label="${n} αστέρια">${n <= ps.rating ? "★" : "☆"}</button>`)
+  const modalStarsHtml = [1, 2, 3, 4, 5]
+    .map((n) => {
+      const cls = n <= ps.rating ? "filled" : (ps.rating >= n - 0.5 ? "half-filled" : "");
+      const ch = n <= ps.rating ? "★" : (ps.rating >= n - 0.5 ? "★" : "☆");
+      return `<button class="modal-star ${cls}" data-n="${n}" aria-label="${n} αστέρια">${ch}</button>`;
+    })
     .join("");
 
   const today = new Date().toISOString().split("T")[0];
@@ -786,7 +808,7 @@ function openReviewModal(playId) {
       <div class="modal-subtitle">${esc(p.titleEn || "")}</div>
       <div class="modal-section">
         <label class="modal-label">Βαθμολογία</label>
-        <div class="modal-stars">${stars}</div>
+        <div class="modal-stars">${modalStarsHtml}</div>
         <div class="modal-rating-text" id="modal-rating-text">${ps.rating ? RATING_LABELS[ps.rating] : ""}</div>
       </div>
       <div class="modal-section">
@@ -919,35 +941,37 @@ function openReviewModal(playId) {
     if (e.key === "Escape") { close(); document.removeEventListener("keydown", onKey); }
   });
 
-  overlay.querySelectorAll(".modal-star").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const n = parseInt(btn.dataset.n);
-      tempRating = tempRating === n ? 0 : n;
-      overlay.querySelectorAll(".modal-star").forEach((s) => {
-        const sn = parseInt(s.dataset.n);
-        s.classList.toggle("filled", sn <= tempRating);
-        s.textContent = sn <= tempRating ? "★" : "☆";
-      });
-      overlay.querySelector("#modal-rating-text").textContent = tempRating ? RATING_LABELS[tempRating] : "";
+  function applyStarVisual(stars, rating) {
+    stars.forEach((s) => {
+      const sn = parseInt(s.dataset.n);
+      s.classList.remove("filled", "half-filled");
+      if (sn <= rating) { s.classList.add("filled"); s.textContent = "★"; }
+      else if (rating >= sn - 0.5) { s.classList.add("half-filled"); s.textContent = "★"; }
+      else { s.textContent = "☆"; }
     });
-    btn.addEventListener("mouseenter", () => {
+    overlay.querySelector("#modal-rating-text").textContent = rating ? (RATING_LABELS[rating] || "") : "";
+  }
+
+  overlay.querySelectorAll(".modal-star").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
       const n = parseInt(btn.dataset.n);
-      overlay.querySelectorAll(".modal-star").forEach((s) => {
-        const sn = parseInt(s.dataset.n);
-        s.classList.toggle("filled", sn <= n);
-        s.textContent = sn <= n ? "★" : "☆";
-      });
-      overlay.querySelector("#modal-rating-text").textContent = RATING_LABELS[n];
+      const rect = btn.getBoundingClientRect();
+      const isLeftHalf = (e.clientX - rect.left) < rect.width / 2;
+      const clicked = isLeftHalf ? n - 0.5 : n;
+      tempRating = tempRating === clicked ? 0 : clicked;
+      applyStarVisual(Array.from(overlay.querySelectorAll(".modal-star")), tempRating);
+    });
+    btn.addEventListener("mousemove", (e) => {
+      const n = parseInt(btn.dataset.n);
+      const rect = btn.getBoundingClientRect();
+      const isLeftHalf = (e.clientX - rect.left) < rect.width / 2;
+      const hoverVal = isLeftHalf ? n - 0.5 : n;
+      applyStarVisual(Array.from(overlay.querySelectorAll(".modal-star")), hoverVal);
     });
   });
 
   overlay.querySelector(".modal-stars").addEventListener("mouseleave", () => {
-    overlay.querySelectorAll(".modal-star").forEach((s) => {
-      const sn = parseInt(s.dataset.n);
-      s.classList.toggle("filled", sn <= tempRating);
-      s.textContent = sn <= tempRating ? "★" : "☆";
-    });
-    overlay.querySelector("#modal-rating-text").textContent = tempRating ? RATING_LABELS[tempRating] : "";
+    applyStarVisual(Array.from(overlay.querySelectorAll(".modal-star")), tempRating);
   });
 
   overlay.querySelectorAll(".rec-btn").forEach((btn) => {
@@ -973,13 +997,17 @@ function openReviewModal(playId) {
         showAuthModal("login");
         return;
       }
-      dbSaveReview(playId, {
+      await dbSaveReview(playId, {
         rating: tempRating, recommendation: tempRec, dateSeen, review,
       });
     }
 
     close();
-    render();
+    if (currentTab === "feed") {
+      loadFeed();
+    } else {
+      render();
+    }
   });
 }
 
@@ -1061,6 +1089,14 @@ function attachEvents() {
       const expanded = !text.classList.contains("clamped");
       text.classList.toggle("clamped", expanded);
       btn.textContent = expanded ? "Περισσότερα…" : "Λιγότερα";
+    });
+  });
+
+  /* feed edit buttons */
+  root.querySelectorAll(".feed-edit-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openReviewModal(btn.dataset.playId);
     });
   });
 

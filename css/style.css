@@ -399,7 +399,22 @@ img { display: block; max-width: 100%; }
 .feed-header {
   display: flex; align-items: center; gap: .75rem;
   margin-bottom: 1rem;
+  position: relative;
 }
+.feed-edit-btn {
+  position: absolute;
+  top: 0; right: 0;
+  background: none; border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, color .15s;
+  padding: .25rem .4rem;
+  border-radius: 6px;
+}
+.feed-card.own-review:hover .feed-edit-btn { opacity: 1; }
+.feed-edit-btn:hover { color: var(--accent); background: var(--surface2); }
 
 .feed-avatar {
   width: 40px; height: 40px;
@@ -476,9 +491,22 @@ img { display: block; max-width: 100%; }
   display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
 }
 .feed-stars {
-  font-size: .9rem;
+  font-size: 1.15rem;
   color: var(--star);
   letter-spacing: 1px;
+  display: inline-flex;
+  align-items: center;
+}
+.feed-stars .star {
+  display: inline-block;
+  line-height: 1;
+}
+.feed-stars .star.empty { color: var(--border); }
+.feed-stars .star.half {
+  background: linear-gradient(90deg, var(--star) 50%, var(--border) 50%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .feed-review-text {
@@ -1055,6 +1083,12 @@ img { display: block; max-width: 100%; }
   padding: 0 .1rem; line-height: 1;
 }
 .strip-star:hover, .strip-star.filled { color: var(--star); }
+.strip-star.half-filled {
+  background: linear-gradient(90deg, var(--star) 50%, var(--border) 50%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 .strip-star:hover { transform: scale(1.2); }
 
 .strip-label { font-size: .85rem; color: var(--muted); margin-bottom: .6rem; }
@@ -1143,6 +1177,12 @@ img { display: block; max-width: 100%; }
   padding: 0 .15rem; line-height: 1;
 }
 .modal-star:hover, .modal-star.filled { color: var(--star); }
+.modal-star.half-filled {
+  background: linear-gradient(90deg, var(--star) 50%, var(--border) 50%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 .modal-star:hover { transform: scale(1.15); }
 
 .modal-rating-text {
