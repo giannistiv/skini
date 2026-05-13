@@ -281,7 +281,7 @@ async function dbGetFollowing() {
 
 async function dbGetFollowingReviews(followingUids) {
   if (!firebaseReady || !followingUids.length) return [];
-  // Firestore "in" queries limited to 30 items
+  // Firestore "in" queries limited to 30 items; skip orderBy to avoid composite index
   const chunks = [];
   for (let i = 0; i < followingUids.length; i += 30) {
     chunks.push(followingUids.slice(i, i + 30));
@@ -290,8 +290,6 @@ async function dbGetFollowingReviews(followingUids) {
   for (const chunk of chunks) {
     const snap = await db.collection("reviews")
       .where("uid", "in", chunk)
-      .orderBy("createdAt", "desc")
-      .limit(50)
       .get();
     all = all.concat(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
   }
