@@ -26,6 +26,7 @@ function setPlayState(id, patch) {
 
 /* ── Filters state ────────────────────────────────── */
 let currentTab = "feed";
+let feedSubTab = "all"; // "all" or "following"
 let searchQuery = "";
 let filterGenre = "";
 let filterVenue = "";
@@ -431,6 +432,10 @@ function buildFeedHTML(reviews) {
     : "—";
 
   return `
+    <div class="feed-sub-tabs">
+      <button class="feed-sub-tab${feedSubTab === "all" ? " active" : ""}" data-sub="all">Feed</button>
+      <button class="feed-sub-tab${feedSubTab === "following" ? " active" : ""}" data-sub="following">Following</button>
+    </div>
     <div class="feed-layout">
       <div class="feed-sidebar">
         <div class="feed-sidebar-card">
@@ -454,70 +459,65 @@ function buildFeedHTML(reviews) {
 
 async function loadFeed() {
   const root = document.getElementById("app");
+  root.innerHTML = '<div class="feed-loading">Φόρτωση κριτικών…</div>';
+
+  let reviews = [];
 
   if (firebaseReady) {
-    root.innerHTML = '<div class="feed-loading">Φόρτωση κριτικών…</div>';
     try {
       await dbPurgeBotReviews();
-      cachedFeedReviews = await dbGetFeedReviews();
+
+      if (feedSubTab === "following") {
+        if (!isLoggedIn()) {
+          root.innerHTML = buildFeedHTML([]);
+          updateTabs();
+          attachEvents();
+          attachFeedSubTabs();
+          return;
+        }
+        const followingUids = await dbGetFollowing();
+        if (followingUids.length > 0) {
+          reviews = await dbGetFollowingReviews(followingUids);
+        }
+      } else {
+        reviews = await dbGetFeedReviews();
+      }
     } catch (e) {
       console.error("Feed load error:", e);
-      cachedFeedReviews = [];
     }
-  } else {
-    cachedFeedReviews = [];
   }
 
-  root.innerHTML = buildFeedHTML(cachedFeedReviews);
+  cachedFeedReviews = reviews;
+  root.innerHTML = buildFeedHTML(reviews);
+
+  /* empty state for following */
+  if (feedSubTab === "following" && reviews.length === 0) {
+    const timeline = root.querySelector(".feed-timeline");
+    if (timeline) {
+      if (!isLoggedIn()) {
+        timeline.innerHTML = '<div class="no-results">Συνδέσου για να δεις τις κριτικές αυτών που ακολουθείς.</div>';
+      } else {
+        timeline.innerHTML = '<div class="no-results">Δεν ακολουθείς κανέναν ακόμα.<br><span class="muted-hint">Βρες κριτικές στο Feed και πάτησε στο προφίλ κάποιου για να τον ακολουθήσεις!</span></div>';
+      }
+    }
+  }
+
   updateTabs();
   attachEvents();
+  attachFeedSubTabs();
 
-  /* load comments (preview + counts) in background */
-  if (firebaseReady && cachedFeedReviews.length) {
-    cachedFeedReviews.forEach((r) => loadComments(r.id));
+  if (firebaseReady && reviews.length) {
+    reviews.forEach((r) => loadComments(r.id));
   }
 }
 
-async function loadFollowingFeed() {
-  const root = document.getElementById("app");
-
-  if (!isLoggedIn()) {
-    root.innerHTML = '<div class="tab-placeholder"><p>Συνδέσου για να δεις τις κριτικές αυτών που ακολουθείς.</p></div>';
-    updateTabs();
-    attachEvents();
-    return;
-  }
-
-  root.innerHTML = '<div class="feed-loading">Φόρτωση…</div>';
-  updateTabs();
-
-  try {
-    const followingUids = await dbGetFollowing();
-    if (followingUids.length === 0) {
-      root.innerHTML = `
-        <div class="tab-placeholder">
-          <p>Δεν ακολουθείς κανέναν ακόμα.</p>
-          <p class="muted-hint">Βρες κριτικές στο Feed και πάτησε στο προφίλ κάποιου για να τον ακολουθήσεις!</p>
-        </div>`;
-      updateTabs();
-      attachEvents();
-      return;
-    }
-
-    const reviews = await dbGetFollowingReviews(followingUids);
-    root.innerHTML = buildFeedHTML(reviews);
-    updateTabs();
-    attachEvents();
-
-    if (reviews.length) {
-      reviews.forEach((r) => loadComments(r.id));
-    }
-  } catch (e) {
-    console.error("Following feed error:", e);
-    root.innerHTML = '<div class="tab-placeholder"><p>Σφάλμα φόρτωσης.</p></div>';
-    updateTabs();
-    attachEvents();
-  }
+function attachFeedSubTabs() {
+  document.querySelectorAll(".feed-sub-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      feedSubTab = btn.dataset.sub;
+      loadFeed();
+    });
+  });
 }
 
 /* ── Profile Page ─────────────────────────────────── */
@@ -1128,9 +1128,6 @@ function render() {
     return;
   } else if (currentTab === "plays") {
     root.innerHTML = renderHome();
-  } else if (currentTab === "following") {
-    loadFollowingFeed();
-    return;
   } else if (currentTab === "profile") {
     root.innerHTML = renderProfile();
     loadProfileReviews();

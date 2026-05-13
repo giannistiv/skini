@@ -313,6 +313,35 @@ img { display: block; max-width: 100%; }
   font-size: .9rem;
 }
 
+/* ── Feed Sub-tabs ─────────────────────────────────── */
+.feed-sub-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 2rem 0;
+}
+.feed-sub-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: .9rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: .6rem 1.5rem;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.feed-sub-tab:hover {
+  color: var(--text);
+}
+.feed-sub-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* ── Feed Layout ──────────────────────────────────── */
 .feed-layout {
   display: grid;
