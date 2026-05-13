@@ -656,11 +656,15 @@ function buildSingleMonthHTML(year, month, dateMap) {
     }
   }
 
+  const nowM = new Date().getMonth();
+  const nowY = new Date().getFullYear();
+  const atMax = year > nowY || (year === nowY && month >= nowM);
+
   return `
     <div class="cal-nav">
       <button class="cal-arrow" id="cal-prev">‹</button>
       <span class="cal-nav-label">${MONTH_NAMES[month]} ${year}</span>
-      <button class="cal-arrow" id="cal-next">›</button>
+      <button class="cal-arrow${atMax ? " disabled" : ""}" id="cal-next">›</button>
     </div>
     <div class="cal-month">
       <div class="cal-grid">${cells}</div>
@@ -692,6 +696,9 @@ function attachCalendarEvents() {
     rerenderCalendar();
   });
   if (next) next.addEventListener("click", () => {
+    const nowM = new Date().getMonth();
+    const nowY = new Date().getFullYear();
+    if (calViewYear > nowY || (calViewYear === nowY && calViewMonth >= nowM)) return;
     calViewMonth++;
     if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
     rerenderCalendar();
