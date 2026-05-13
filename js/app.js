@@ -478,6 +478,48 @@ async function loadFeed() {
   }
 }
 
+async function loadFollowingFeed() {
+  const root = document.getElementById("app");
+
+  if (!isLoggedIn()) {
+    root.innerHTML = '<div class="tab-placeholder"><p>Συνδέσου για να δεις τις κριτικές αυτών που ακολουθείς.</p></div>';
+    updateTabs();
+    attachEvents();
+    return;
+  }
+
+  root.innerHTML = '<div class="feed-loading">Φόρτωση…</div>';
+  updateTabs();
+
+  try {
+    const followingUids = await dbGetFollowing();
+    if (followingUids.length === 0) {
+      root.innerHTML = `
+        <div class="tab-placeholder">
+          <p>Δεν ακολουθείς κανέναν ακόμα.</p>
+          <p class="muted-hint">Βρες κριτικές στο Feed και πάτησε στο προφίλ κάποιου για να τον ακολουθήσεις!</p>
+        </div>`;
+      updateTabs();
+      attachEvents();
+      return;
+    }
+
+    const reviews = await dbGetFollowingReviews(followingUids);
+    root.innerHTML = buildFeedHTML(reviews);
+    updateTabs();
+    attachEvents();
+
+    if (reviews.length) {
+      reviews.forEach((r) => loadComments(r.id));
+    }
+  } catch (e) {
+    console.error("Following feed error:", e);
+    root.innerHTML = '<div class="tab-placeholder"><p>Σφάλμα φόρτωσης.</p></div>';
+    updateTabs();
+    attachEvents();
+  }
+}
+
 /* ── Profile Page ─────────────────────────────────── */
 function renderProfile() {
   if (!isLoggedIn()) return '<div class="tab-placeholder"><p>Συνδέσου για να δεις το προφίλ σου.</p></div>';
@@ -725,6 +767,10 @@ async function loadPublicProfile(uid) {
       : `<div class="profile-avatar">${esc(initials)}</div>`;
 
     const isOwnProfile = isLoggedIn() && getUserUid() === uid;
+    let followStatus = { iFollow: false, theyFollow: false };
+    if (isLoggedIn() && !isOwnProfile) {
+      followStatus = await dbCheckMutualFollow(uid);
+    }
     const totalRated = reviews.filter((r) => r.rating > 0).length;
     const avgRating = totalRated
       ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / totalRated).toFixed(1)
@@ -762,6 +808,13 @@ async function loadPublicProfile(uid) {
               <span>${reviews.length} κριτικές</span>
               <span>Μ.Ο. ★ ${avgRating}</span>
             </div>
+            ${!isOwnProfile && isLoggedIn() ? `
+              <div class="profile-follow-row">
+                <button class="btn follow-btn${followStatus.iFollow ? " following" : ""}" id="follow-btn" data-uid="${esc(uid)}">
+                  ${followStatus.iFollow ? "✓ Following" : "+ Follow"}
+                </button>
+                ${followStatus.iFollow && followStatus.theyFollow ? '<span class="friends-badge">Φίλοι 🤝</span>' : ""}
+              </div>` : ""}
             ${isOwnProfile ? '<button class="btn" id="edit-profile-btn">Επεξεργασία προφίλ</button>' : ""}
           </div>
         </div>
@@ -794,6 +847,31 @@ async function loadPublicProfile(uid) {
         render();
       });
     }
+    /* follow button */
+    const followBtn = root.querySelector("#follow-btn");
+    if (followBtn) {
+      followBtn.addEventListener("click", async () => {
+        followBtn.disabled = true;
+        const nowFollowing = await dbToggleFollow(followBtn.dataset.uid);
+        if (nowFollowing !== null) {
+          followBtn.classList.toggle("following", nowFollowing);
+          followBtn.textContent = nowFollowing ? "✓ Following" : "+ Follow";
+          /* refresh to update friends badge */
+          if (nowFollowing) {
+            const mutual = await dbCheckMutualFollow(uid);
+            const badge = root.querySelector(".friends-badge");
+            if (mutual.iFollow && mutual.theyFollow && !badge) {
+              followBtn.insertAdjacentHTML("afterend", ' <span class="friends-badge">Φίλοι 🤝</span>');
+            }
+          } else {
+            const badge = root.querySelector(".friends-badge");
+            if (badge) badge.remove();
+          }
+        }
+        followBtn.disabled = false;
+      });
+    }
+
     root.querySelectorAll("[data-id]").forEach((el) => {
       el.addEventListener("click", () => navigate(el.dataset.id));
     });
@@ -803,11 +881,6 @@ async function loadPublicProfile(uid) {
     console.error("Profile load error:", e);
     root.innerHTML = '<div class="tab-placeholder"><p>Σφάλμα φόρτωσης προφίλ.</p></div>';
   }
-}
-
-/* ── Placeholder tabs ─────────────────────────────── */
-function renderPlaceholderTab(name) {
-  return `<div class="tab-placeholder"><p>${esc(name)} — Σύντομα διαθέσιμο</p></div>`;
 }
 
 /* ── Review Modal ─────────────────────────────────── */
@@ -1055,13 +1128,12 @@ function render() {
     return;
   } else if (currentTab === "plays") {
     root.innerHTML = renderHome();
+  } else if (currentTab === "following") {
+    loadFollowingFeed();
+    return;
   } else if (currentTab === "profile") {
     root.innerHTML = renderProfile();
     loadProfileReviews();
-  } else if (currentTab === "friends") {
-    root.innerHTML = renderPlaceholderTab("Φίλοι");
-  } else if (currentTab === "lists") {
-    root.innerHTML = renderPlaceholderTab("Λίστες");
   }
 
   updateTabs();

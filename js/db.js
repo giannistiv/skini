@@ -253,6 +253,73 @@ async function dbGetUserProfile(uid) {
   };
 }
 
+/* ── Firestore: Following ──────────────────────────── */
+async function dbToggleFollow(targetUid) {
+  if (!firebaseReady || !isLoggedIn()) return null;
+  const uid = getUserUid();
+  if (uid === targetUid) return null;
+
+  const ref = db.collection("users").doc(uid);
+  const doc = await ref.get();
+  const following = doc.exists ? (doc.data().following || []) : [];
+
+  if (following.includes(targetUid)) {
+    await ref.update({ following: firebase.firestore.FieldValue.arrayRemove(targetUid) });
+    return false;
+  } else {
+    await ref.update({ following: firebase.firestore.FieldValue.arrayUnion(targetUid) });
+    return true;
+  }
+}
+
+async function dbGetFollowing() {
+  if (!firebaseReady || !isLoggedIn()) return [];
+  const uid = getUserUid();
+  const doc = await db.collection("users").doc(uid).get();
+  return doc.exists ? (doc.data().following || []) : [];
+}
+
+async function dbGetFollowingReviews(followingUids) {
+  if (!firebaseReady || !followingUids.length) return [];
+  // Firestore "in" queries limited to 30 items
+  const chunks = [];
+  for (let i = 0; i < followingUids.length; i += 30) {
+    chunks.push(followingUids.slice(i, i + 30));
+  }
+  let all = [];
+  for (const chunk of chunks) {
+    const snap = await db.collection("reviews")
+      .where("uid", "in", chunk)
+      .orderBy("createdAt", "desc")
+      .limit(50)
+      .get();
+    all = all.concat(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  }
+  all.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  return all.slice(0, 50);
+}
+
+async function dbIsFollowing(targetUid) {
+  if (!firebaseReady || !isLoggedIn()) return false;
+  const following = await dbGetFollowing();
+  return following.includes(targetUid);
+}
+
+async function dbCheckMutualFollow(targetUid) {
+  if (!firebaseReady || !isLoggedIn()) return { iFollow: false, theyFollow: false };
+  const uid = getUserUid();
+  const [myDoc, theirDoc] = await Promise.all([
+    db.collection("users").doc(uid).get(),
+    db.collection("users").doc(targetUid).get(),
+  ]);
+  const myFollowing = myDoc.exists ? (myDoc.data().following || []) : [];
+  const theirFollowing = theirDoc.exists ? (theirDoc.data().following || []) : [];
+  return {
+    iFollow: myFollowing.includes(targetUid),
+    theyFollow: theirFollowing.includes(uid),
+  };
+}
+
 /* ── Firestore: Comments ───────────────────────────── */
 async function dbAddComment(reviewId, text) {
   if (!firebaseReady || !isLoggedIn()) return null;
