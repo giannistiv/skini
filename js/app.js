@@ -360,7 +360,7 @@ function buildFeedHTML(reviews) {
     }
 
     const reviewText = r.review || "";
-    const needsClamp = reviewText.length > 120;
+    const needsClamp = reviewText.length > 300;
     const likedBy = r.likedBy || [];
     const isLiked = uid && likedBy.includes(uid);
     const likeCount = r.likes || 0;

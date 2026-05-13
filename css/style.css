@@ -516,7 +516,7 @@ img { display: block; max-width: 100%; }
 }
 .feed-review-text.clamped {
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
