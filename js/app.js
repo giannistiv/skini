@@ -399,11 +399,16 @@ function buildFeedHTML(reviews) {
             ${isLiked ? "♥" : "♡"} <span class="like-count">${likeCount}</span>
           </button>
           <button class="feed-comment-toggle" data-review-id="${esc(r.id)}">
-            💬 <span class="comment-count" data-review-id="${esc(r.id)}"></span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span class="comment-count" data-review-id="${esc(r.id)}"></span>
           </button>
         </div>
-        <div class="feed-comments" id="comments-${esc(r.id)}" data-review-id="${esc(r.id)}" style="display:none;">
-          <div class="comments-list"></div>
+        <div class="feed-comments" id="comments-${esc(r.id)}" data-review-id="${esc(r.id)}">
+          <div class="comments-preview"></div>
+          <button class="comments-show-all" data-review-id="${esc(r.id)}" style="display:none;"></button>
+          <div class="comments-expanded" style="display:none;">
+            <div class="comments-list"></div>
+          </div>
           <div class="comment-input-row">
             <input type="text" class="comment-input" placeholder="Γράψε σχόλιο…" maxlength="300">
             <button class="comment-send-btn" title="Αποστολή">➤</button>
@@ -467,17 +472,9 @@ async function loadFeed() {
   updateTabs();
   attachEvents();
 
-  /* load comment counts in background */
+  /* load comments (preview + counts) in background */
   if (firebaseReady && cachedFeedReviews.length) {
-    cachedFeedReviews.forEach(async (r) => {
-      try {
-        const snap = await db.collection("reviews").doc(r.id).collection("comments").get();
-        const count = snap.size;
-        document.querySelectorAll(`.comment-count[data-review-id="${r.id}"]`).forEach((el) => {
-          el.textContent = count || "";
-        });
-      } catch (_) {}
-    });
+    cachedFeedReviews.forEach((r) => loadComments(r.id));
   }
 }
 
@@ -1080,56 +1077,76 @@ function updateTabs() {
 }
 
 /* ── Events ────────────────────────────────────────── */
+function renderCommentHTML(c, reviewId, uid) {
+  const ts = c.createdAt
+    ? new Date((c.createdAt.seconds || 0) * 1000).toLocaleDateString("el-GR", { day: "numeric", month: "short" })
+    : "";
+  const isOwn = uid && c.uid === uid;
+  return `
+    <div class="comment-item">
+      <div class="comment-header">
+        <span class="comment-avatar">${esc(c.userInitials || "??")}</span>
+        <span class="comment-author feed-user-link" data-user-uid="${esc(c.uid || "")}">${esc(c.userName)}</span>
+        <span class="comment-time">${esc(ts)}</span>
+        ${isOwn ? `<button class="comment-delete" data-review-id="${esc(reviewId)}" data-comment-id="${esc(c.id)}" title="Διαγραφή">×</button>` : ""}
+      </div>
+      <div class="comment-text">${esc(c.text)}</div>
+    </div>`;
+}
+
+function wireCommentEvents(container, reviewId) {
+  container.querySelectorAll(".comment-delete").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await dbDeleteComment(btn.dataset.reviewId, btn.dataset.commentId);
+      await loadComments(btn.dataset.reviewId);
+    });
+  });
+  container.querySelectorAll(".feed-user-link").forEach((el) => {
+    el.addEventListener("click", () => navigateToUser(el.dataset.userUid));
+  });
+}
+
 async function loadComments(reviewId) {
   const section = document.getElementById("comments-" + reviewId);
   if (!section) return;
+  const preview = section.querySelector(".comments-preview");
+  const showAllBtn = section.querySelector(".comments-show-all");
+  const expanded = section.querySelector(".comments-expanded");
   const list = section.querySelector(".comments-list");
   const uid = getUserUid();
 
   try {
     const comments = await dbGetComments(reviewId);
+
     /* update count badge */
     document.querySelectorAll(`.comment-count[data-review-id="${reviewId}"]`).forEach((el) => {
       el.textContent = comments.length || "";
     });
 
-    if (comments.length === 0) {
-      list.innerHTML = '<div class="no-comments">Κανένα σχόλιο ακόμα</div>';
-      return;
+    /* preview: latest 2 */
+    const latest2 = comments.slice(-2);
+    if (latest2.length > 0) {
+      preview.innerHTML = latest2.map((c) => renderCommentHTML(c, reviewId, uid)).join("");
+      wireCommentEvents(preview, reviewId);
+    } else {
+      preview.innerHTML = "";
     }
 
-    list.innerHTML = comments.map((c) => {
-      const ts = c.createdAt
-        ? new Date((c.createdAt.seconds || 0) * 1000).toLocaleDateString("el-GR", { day: "numeric", month: "short" })
-        : "";
-      const isOwn = uid && c.uid === uid;
-      return `
-        <div class="comment-item">
-          <div class="comment-header">
-            <span class="comment-avatar">${esc(c.userInitials || "??")}</span>
-            <span class="comment-author feed-user-link" data-user-uid="${esc(c.uid || "")}">${esc(c.userName)}</span>
-            <span class="comment-time">${esc(ts)}</span>
-            ${isOwn ? `<button class="comment-delete" data-review-id="${esc(reviewId)}" data-comment-id="${esc(c.id)}" title="Διαγραφή">×</button>` : ""}
-          </div>
-          <div class="comment-text">${esc(c.text)}</div>
-        </div>`;
-    }).join("");
+    /* show-all button */
+    if (comments.length > 2) {
+      showAllBtn.textContent = `Δες όλα τα σχόλια (${comments.length})`;
+      showAllBtn.style.display = "";
+    } else {
+      showAllBtn.style.display = "none";
+    }
 
-    /* delete buttons */
-    list.querySelectorAll(".comment-delete").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        await dbDeleteComment(btn.dataset.reviewId, btn.dataset.commentId);
-        await loadComments(btn.dataset.reviewId);
-      });
-    });
+    /* full list (for expanded view) */
+    list.innerHTML = comments.map((c) => renderCommentHTML(c, reviewId, uid)).join("");
+    wireCommentEvents(list, reviewId);
 
-    /* user links in comments */
-    list.querySelectorAll(".feed-user-link").forEach((el) => {
-      el.addEventListener("click", () => navigateToUser(el.dataset.userUid));
-    });
   } catch (e) {
     console.error("Load comments error:", e);
-    list.innerHTML = '<div class="no-comments">Σφάλμα φόρτωσης</div>';
+    preview.innerHTML = '<div class="no-comments">Σφάλμα φόρτωσης</div>';
   }
 }
 
@@ -1208,18 +1225,25 @@ function attachEvents() {
     });
   });
 
-  /* feed comment toggles */
+  /* feed comment toggle → focus input */
   root.querySelectorAll(".feed-comment-toggle").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
       const reviewId = btn.dataset.reviewId;
       const section = document.getElementById("comments-" + reviewId);
       if (!section) return;
-      const isOpen = section.style.display !== "none";
-      section.style.display = isOpen ? "none" : "block";
-      if (!isOpen && !section.dataset.loaded) {
-        section.dataset.loaded = "1";
-        await loadComments(reviewId);
-      }
+      const input = section.querySelector(".comment-input");
+      if (input) input.focus();
+    });
+  });
+
+  /* show-all-comments buttons */
+  root.querySelectorAll(".comments-show-all").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = document.getElementById("comments-" + btn.dataset.reviewId);
+      if (!section) return;
+      section.querySelector(".comments-preview").style.display = "none";
+      btn.style.display = "none";
+      section.querySelector(".comments-expanded").style.display = "block";
     });
   });
 
@@ -1240,6 +1264,13 @@ function attachEvents() {
       input.disabled = false;
       sendBtn.disabled = false;
       await loadComments(reviewId);
+      /* if expanded view was open, keep it open */
+      const expanded = section.querySelector(".comments-expanded");
+      if (expanded.style.display !== "none") {
+        section.querySelector(".comments-preview").style.display = "none";
+        section.querySelector(".comments-show-all").style.display = "none";
+        expanded.style.display = "block";
+      }
       input.focus();
     }
 

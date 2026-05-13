@@ -563,7 +563,9 @@ img { display: block; max-width: 100%; }
   padding: .25rem .5rem;
   border-radius: 6px;
   transition: color .15s, background .15s;
+  display: inline-flex; align-items: center; gap: .35rem;
 }
+.feed-comment-toggle svg { vertical-align: middle; }
 .feed-comment-toggle:hover {
   color: var(--accent);
   background: rgba(64,224,160,.08);
@@ -571,16 +573,25 @@ img { display: block; max-width: 100%; }
 
 /* ── Comments ──────────────────────────────────────── */
 .feed-comments {
-  border-top: 1px solid var(--border);
   margin-top: .75rem;
-  padding-top: .75rem;
+  padding-top: .5rem;
 }
 
+.comments-preview,
 .comments-list {
-  max-height: 280px;
+  max-height: 320px;
   overflow-y: auto;
-  margin-bottom: .6rem;
 }
+
+.comments-show-all {
+  background: none; border: none;
+  color: var(--muted);
+  font-size: .78rem; font-family: inherit;
+  cursor: pointer;
+  padding: .35rem 0;
+  transition: color .15s;
+}
+.comments-show-all:hover { color: var(--accent); }
 
 .comment-item {
   padding: .5rem 0;
